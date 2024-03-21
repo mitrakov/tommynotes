@@ -1,0 +1,24 @@
+name: tommynotes
+description: "Domingo Virtual Notes"
+publish_to: 'none'
+version: 24.3.21+1
+
+environment:
+  sdk: '>=3.2.6 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  sqflite: 2.3.2                   # DB support
+  path_provider: 2.1.2             # getApplicationDocumentsDirectory() TODO do we need it?
+  markdown_widget: 2.3.2+3         # markdown widget
+  cupertino_icons: 1.0.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: 3.0.1
+
+flutter:
+  uses-material-design: true
