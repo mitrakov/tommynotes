@@ -1,3 +1,4 @@
+// ignore_for_file: curly_braces_in_flow_control_structures
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:markdown_widget/widget/markdown.dart';
@@ -44,6 +45,12 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   String _data = "";
 
+  Future<Iterable<String>> getNotes() async {
+    final db = Db.instance.database;
+    final dbResult = await db.rawQuery("SELECT data FROM note ORDER BY note_id;");
+    return dbResult.map((e) => e["data"].toString());
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -89,13 +96,13 @@ class _MyHomePageState extends State<MyHomePage> {
                       ),
                       TrixContainer(
                         child: Row(children: [
-                          OutlinedButton(onPressed: () {}, child: Text("Tags here                                 ")),
+                          OutlinedButton(onPressed: () {}, child: const Text("Tags here                                 ")),
                           OutlinedButton(onPressed: () async {
-                            final db = await Db.instance.database;
-                            final dbResult = await db.rawQuery("SELECT COUNT(*) FROM note;");
+                            final db = Db.instance.database;
+                            final dbResult = await db.rawQuery("SELECT data FROM note ORDER BY note_id DESC;");
                             final result = dbResult.first.values.first;
-                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("result: ${result}")));
-                          }, child: Text("Save")),
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("result: $result")));
+                          }, child: const Text("Save")),
                         ],),
                       )
                     ],
@@ -105,12 +112,17 @@ class _MyHomePageState extends State<MyHomePage> {
             ),
           ),
           Expanded(
-            child: TrixContainer(
-              child: ListView(scrollDirection: Axis.horizontal, children: const [
-                Text("Note 1 "),
-                Text("Note 2 "),
-                Text("Note 3 "),
-              ],),
+            child: TrixContainer( // TODO use ListView.builder
+              child: FutureBuilder(
+                future: getNotes(),
+                builder: (context, snapshot) {
+                  if (snapshot.hasData) {
+                    final futureResult = snapshot.data!;
+                    final children = futureResult.map((e) => TrixContainer(child: Text(e))).toList();
+                    return ListView(scrollDirection: Axis.horizontal, children: children);
+                  } else return const CircularProgressIndicator();
+                },
+              ),
             ),
           )
         ],
