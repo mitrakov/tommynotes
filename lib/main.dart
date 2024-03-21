@@ -1,9 +1,19 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:markdown_widget/widget/markdown.dart';
+import 'package:tommynotes/db.dart';
 import 'package:tommynotes/trixcontainer.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized(); // allow async code in main()
+  final path = await getStartFile();
+  await Db.instance.initDb(path);
   runApp(const MyApp());
+}
+
+Future<String> getStartFile() async {
+  final FilePickerResult? result = await FilePicker.platform.pickFiles(dialogTitle: "Select a DB file", type: FileType.custom, allowedExtensions: ["db"], lockParentWindow: true);
+  return result?.files.first.path ?? "";
 }
 
 class MyApp extends StatelessWidget {
@@ -80,7 +90,12 @@ class _MyHomePageState extends State<MyHomePage> {
                       TrixContainer(
                         child: Row(children: [
                           OutlinedButton(onPressed: () {}, child: Text("Tags here                                 ")),
-                          OutlinedButton(onPressed: () {}, child: Text("Save")),
+                          OutlinedButton(onPressed: () async {
+                            final db = await Db.instance.database;
+                            final dbResult = await db.rawQuery("SELECT COUNT(*) FROM note;");
+                            final result = dbResult.first.values.first;
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("result: ${result}")));
+                          }, child: Text("Save")),
                         ],),
                       )
                     ],

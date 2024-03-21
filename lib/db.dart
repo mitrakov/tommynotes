@@ -1,30 +1,17 @@
-import 'dart:io';
-
-import 'package:path/path.dart' as path;
-import 'package:path_provider/path_provider.dart';
+// ignore_for_file: curly_braces_in_flow_control_structures
 import 'package:sqflite/sqflite.dart';
 
-class DBProvider {
-  DBProvider._();
-  static final DBProvider db = DBProvider._();
-  static Database? _database;
+class Db {
+  Db._();
+  static final Db instance = Db._();
+  static late Database? _database;
 
-  Future<Database> get database async {
+  Database get database {
     if (_database != null) return _database!;
-
-    _database = await initDB();
-    return _database!;
+    else throw Exception("Database is not initialized. Call Db.instance.initDb() first");
   }
 
-  initDB() async {
-    Directory docDir = await getApplicationDocumentsDirectory();
-    final dbPath = path.join(docDir.path, "main.db");
-    return await openDatabase(dbPath, version: 1, onCreate: (db, version) async {
-      await db.execute("CREATE TABLE main (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, data TEXT NOT NULL, binary BLOB NULL, author VARCHAR(64) NOT NULL DEFAULT '', "
-      "client VARCHAR(255) NOT NULL DEFAULT '', date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, colour INTEGER NOT NULL DEFAULT 16777215, is_visible BOOLEAN NOT NULL DEFAULT true, "
-      "created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, is_deleted BOOLEAN NOT NULL DEFAULT false);");
-    });
-
+  Future<void> initDb(String path) async {
+    _database = await openDatabase(path);
   }
 }
-
