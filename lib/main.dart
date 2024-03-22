@@ -1,4 +1,5 @@
 // ignore_for_file: curly_braces_in_flow_control_structures
+import 'dart:math';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:markdown_widget/widget/markdown.dart';
@@ -51,7 +52,7 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  String _data = "";
+  final TextEditingController _ctrl = TextEditingController();
 
   Future<Iterable<String>> getNotes() async {
     final db = Db.instance.database;
@@ -91,14 +92,10 @@ class _MyHomePageState extends State<MyHomePage> {
                           children: [
                             Expanded(
                               child: TrixContainer(
-                                child: TextField(maxLines: 1024, onChanged: (s) {
-                                  setState(() {
-                                    _data = s;
-                                  });
-                                }),
+                                child: TextField(controller: _ctrl, maxLines: 1024, onChanged: (s) => setState(() {})),
                               ),
                             ),
-                            Expanded(child: TrixContainer(child: MarkdownWidget(data: _data))),
+                            Expanded(child: TrixContainer(child: MarkdownWidget(data: _ctrl.text))),
                           ],
                         ),
                       ),
@@ -106,28 +103,32 @@ class _MyHomePageState extends State<MyHomePage> {
                         child: Row(children: [
                           OutlinedButton(onPressed: () {}, child: const Text("Tags here                                 ")),
                           OutlinedButton(onPressed: () async {
-                            final db = Db.instance.database;
-                            final dbResult = await db.rawQuery("SELECT data FROM note ORDER BY note_id DESC;");
-                            final result = dbResult.first.values.first;
-                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("result: $result")));
+                            var data = _ctrl.text.trim();
+                            if (data.isNotEmpty) {
+                              await Db.instance.database.rawInsert("INSERT INTO note (data) VALUES (?)", [data]); // returns primaryKey ID
+                              setState(() => _ctrl.text = "");
+                            }
                           }, child: const Text("Save")),
-                        ],),
-                      )
+                        ]),
+                      ),
                     ],
                   ),
-                )
+                ),
               ],
             ),
           ),
           Expanded(
-            child: TrixContainer( // TODO use ListView.builder
+            child: TrixContainer(
               child: FutureBuilder(
                 future: getNotes(),
                 builder: (context, snapshot) {
                   if (snapshot.hasData) {
                     final futureResult = snapshot.data!;
-                    final children = futureResult.map((e) => TrixContainer(child: Text(e))).toList();
-                    return ListView(scrollDirection: Axis.horizontal, children: children);
+                    final children = futureResult.map((e) =>
+                      TrixContainer(
+                        child: TextButton(onPressed: () => setState(() => _ctrl.text = e), child: Text(e.substring(0, min(e.length, 32))))
+                      )).toList(); // TODO 32 is total char count which is wrong
+                    return ListView(scrollDirection: Axis.horizontal, children: children); // TODO use ListView.builder
                   } else return const CircularProgressIndicator();
                 },
               ),
