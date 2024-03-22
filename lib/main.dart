@@ -3,18 +3,26 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:markdown_widget/widget/markdown.dart';
 import 'package:tommynotes/db.dart';
+import 'package:tommynotes/settings.dart';
 import 'package:tommynotes/trixcontainer.dart';
+
+const String lastOpenPathKey = "LAST_OPEN_PATH";
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized(); // allow async code in main()
-  final path = await getStartFile();
+  await Settings.instance.init();
+  final path = Settings.instance.settings.getString(lastOpenPathKey) ?? await getStartFile();
   await Db.instance.initDb(path);
+
   runApp(const MyApp());
 }
 
 Future<String> getStartFile() async {
-  final FilePickerResult? result = await FilePicker.platform.pickFiles(dialogTitle: "Select a DB file", type: FileType.custom, allowedExtensions: ["db"], lockParentWindow: true);
-  return result?.files.first.path ?? "";
+  final FilePickerResult? res = await FilePicker.platform.pickFiles(dialogTitle: "Select a DB file", type: FileType.custom, allowedExtensions: ["db"], lockParentWindow: true);
+  final result = res?.files.first.path ?? "";
+  if (result.isNotEmpty)
+    Settings.instance.settings.setString(lastOpenPathKey, result);
+  return result;
 }
 
 class MyApp extends StatelessWidget {
