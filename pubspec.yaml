@@ -13,6 +13,7 @@ dependencies:
   sqflite: 2.3.2                   # DB support
   markdown_widget: 2.3.2+3         # markdown widget
   shared_preferences: 2.2.2        # key-value storage
+  flutter_platform_alert: 0.5.1    # simple native platform dialogs
 
 dev_dependencies:
   flutter_test:
