@@ -50,6 +50,7 @@ class _MyHomePageState extends State<MyHomePage> {
   final TextEditingController _mainCtrl = TextEditingController();
   final TextEditingController _tagsCtrl = TextEditingController();
   int _noteId = 0;
+  String? _currentTag;
 
   @override
   Widget build(BuildContext context) {
@@ -89,8 +90,15 @@ class _MyHomePageState extends State<MyHomePage> {
                         future: _getTags(),
                         builder: (context, snapshot) {
                           if (snapshot.hasData) {
-                            final tags = snapshot.data!.map((tag) => Text(tag)).toList();
-                            return ListView(children: [const Text("Tags", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)), ...tags]);
+                            final tags = snapshot.data!.map((tag) => Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: OutlinedButton(child: Text(tag), onPressed: () {
+                                setState(() {
+                                  _currentTag = tag;
+                                });
+                              }),
+                            )).toList();
+                            return ListView( children: [const Text("Tags", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)), ...tags]);
                           } else return const CircularProgressIndicator();
                         },
                       ),
@@ -101,7 +109,8 @@ class _MyHomePageState extends State<MyHomePage> {
                     child: Column(
                       children: [
                         Expanded(
-                          child: Row(
+                          child: _currentTag == null
+                            ? Row(
                             children: [
                               Expanded(
                                 child: TrixContainer(
@@ -110,13 +119,22 @@ class _MyHomePageState extends State<MyHomePage> {
                               ),
                               Expanded(child: TrixContainer(child: MarkdownWidget(data: _mainCtrl.text))),
                             ],
+                          )
+                          : TrixContainer(
+                              child: FutureBuilder(
+                                future: _searchByTag(_currentTag!),
+                                builder: (context, snapshot) => snapshot.data ?? const CircularProgressIndicator(),
+                              )
                           ),
                         ),
-                        TrixContainer(
-                          child: Row(children: [
-                            SizedBox(width: 300, child: TextField(controller: _tagsCtrl, decoration: const InputDecoration(label: Text("Tags")))),
-                            OutlinedButton(onPressed: _saveNote, child: Text(_noteId == 0 ? "Add New" : "Save")),
-                          ]),
+                        Visibility(
+                          visible: _currentTag == null,
+                          child: TrixContainer(
+                            child: Row(children: [
+                              SizedBox(width: 300, child: TextField(controller: _tagsCtrl, decoration: const InputDecoration(label: Text("Tags")))),
+                              OutlinedButton(onPressed: _saveNote, child: Text(_noteId == 0 ? "Add New" : "Save")),
+                            ]),
+                          ),
                         ),
                       ],
                     ),
@@ -148,6 +166,7 @@ class _MyHomePageState extends State<MyHomePage> {
                               _noteId = note.noteId;
                               _mainCtrl.text = note.note;
                               _tagsCtrl.text = note.tags;
+                              _currentTag = null;
                             }))
                           ),
                         )).toList(); // TODO 32 is total char count which is wrong
@@ -241,5 +260,11 @@ class _MyHomePageState extends State<MyHomePage> {
     if (path != null)
       Settings.instance.settings.setString(lastOpenPathKey, path);
     return path;
+  }
+
+  Future<Widget> _searchByTag(String tag) async {
+    final rows = await Db.instance.database!.rawQuery("SELECT data FROM note INNER JOIN note_to_tag USING (note_id) INNER JOIN tag USING (tag_id) WHERE name = ?;", [tag]);
+    final children = rows.map((e) => TrixContainer(child: MarkdownWidget(data: e["data"].toString(), shrinkWrap: true))).toList();
+    return ListView(children: children);
   }
 }
