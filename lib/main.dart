@@ -83,100 +83,82 @@ class _MyHomePageState extends State<MyHomePage> {
           children: [
             Flexible(
               flex: 8,
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TrixContainer(
-                      child: FutureBuilder(
-                        future: _getTags(),
-                        builder: (context, snapshot) {
-                          if (snapshot.hasData) {
-                            final tags = snapshot.data!.map((tag) => Padding(
-                              padding: const EdgeInsets.only(top: 2),
-                              child: OutlinedButton(child: Text(tag), onPressed: () => setState(() {
-                                _noteId = 0;
-                                _mainCtrl.text = "";
-                                _tagsCtrl.text = "";
-                                _currentTag = tag;
-                              })),
-                            )).toList();
-                            return ListView( children: [const Text("Tags", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)), ...tags]);
-                          } else return const CircularProgressIndicator();
-                        },
-                      ),
+              child: Row(children: [
+                Expanded(
+                  child: TrixContainer(
+                    child: FutureBuilder(
+                      future: _getTags(),
+                      builder: (context, snapshot) {
+                        if (snapshot.hasData) {
+                          final tags = snapshot.data!.map((tag) => Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: OutlinedButton(child: Text(tag), onPressed: () => setState(() {
+                              _noteId = 0;
+                              _mainCtrl.text = "";
+                              _tagsCtrl.text = "";
+                              _currentTag = tag;
+                            })),
+                          )).toList();
+                          return ListView( children: [const Text("Tags", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)), ...tags]);
+                        } else return const CircularProgressIndicator();
+                      },
                     ),
                   ),
-                  Flexible(
-                    flex: 6,
-                    child: Column(
-                      children: [
-                        Expanded(
-                          child: _currentTag == null
-                            ? Row(
-                            children: [
-                              Expanded(
-                                child: TrixContainer(
-                                  child: TextField(controller: _mainCtrl, maxLines: 1024, onChanged: (s) => setState(() {})),
-                                ),
-                              ),
-                              Expanded(child: TrixContainer(child: MarkdownWidget(data: _mainCtrl.text))),
-                            ],
-                          )
-                          : TrixContainer(
-                              child: FutureBuilder(
-                                future: _searchByTag(_currentTag!),
-                                builder: (context, snapshot) => snapshot.data ?? const CircularProgressIndicator(),
-                              )
-                          ),
-                        ),
-                        Visibility(
-                          visible: _currentTag == null,
-                          child: TrixContainer(
-                            child: Row(children: [
-                              SizedBox(width: 300, child: TextField(controller: _tagsCtrl, decoration: const InputDecoration(label: Text("Tags")))),
-                              OutlinedButton(onPressed: _saveNote, child: Text(_noteId == 0 ? "Add New" : "Save")),
-                            ]),
-                          ),
-                        ),
-                      ],
+                ),
+                Flexible(
+                  flex: 6,
+                  child: Column(children: [
+                    Expanded(child: _currentTag == null
+                      ? Row(children: [
+                          Expanded(child: TrixContainer(child: TextField(controller: _mainCtrl, maxLines: 1024, onChanged: (s) => setState(() {})))),
+                          Expanded(child: TrixContainer(child: MarkdownWidget(data: _mainCtrl.text))),
+                        ])
+                      : TrixContainer(child: FutureBuilder(
+                          future: _searchByTag(_currentTag!),
+                          builder: (context, snapshot) => snapshot.data ?? const CircularProgressIndicator(),
+                        )),
                     ),
+                    Visibility(
+                      visible: _currentTag == null,
+                      child: TrixContainer(child: Row(children: [
+                        SizedBox(width: 300, child: TextField(controller: _tagsCtrl, decoration: const InputDecoration(label: Text("Tags")))),
+                        OutlinedButton(onPressed: _saveNote, child: Text(_noteId == 0 ? "Add New" : "Save")),
+                      ])),
+                    )],
                   ),
-                ],
+                )],
               ),
             ),
             Expanded(
-              child: TrixContainer(
-                child: FutureBuilder(
-                  future: _getNotes(),
-                  builder: (context, snapshot) {
-                    if (snapshot.hasData) {
-                      final futureResult = snapshot.data!;
-                      final children = futureResult.map((note) =>
-                        ContextMenuRegion(
-                          menuItems: [
-                            MenuItem(title: deleteKey),
-                          ],
-                          onItemSelected: (item) async {
-                            if (item.title == deleteKey) {
-                              await Db.instance.database!.rawDelete("DELETE FROM note WHERE note_id = ?;", [note.noteId]); // TODO soft delete?
-                              await Db.instance.database!.rawDelete("DELETE FROM tag  WHERE tag_id NOT IN (SELECT DISTINCT tag_id FROM note_to_tag);");
-                              setState(() {}); // refresh
-                            }
-                          },
-                          child: TrixContainer(
-                            child: TextButton(child: Text(note.note.substring(0, min(note.note.length, 32))), onPressed: () => setState(() {
-                              _noteId = note.noteId;
-                              _mainCtrl.text = note.note;
-                              _tagsCtrl.text = note.tags;
-                              _currentTag = null;
-                            }))
-                          ),
-                        )).toList(); // TODO 32 is total char count which is wrong
-                      return ListView(scrollDirection: Axis.horizontal, children: children); // TODO use ListView.builder
-                    } else return const CircularProgressIndicator();
-                  },
-                ),
-              ),
+              child: TrixContainer(child: FutureBuilder(
+                future: _getNotes(),
+                builder: (context, snapshot) {
+                  if (snapshot.hasData) {
+                    final children = snapshot.data!.map((note) =>
+                      ContextMenuRegion(
+                        menuItems: [MenuItem(title: deleteKey)],
+                        onItemSelected: (item) async {
+                          if (item.title == deleteKey) {
+                            await Db.instance.database!.rawDelete("DELETE FROM note WHERE note_id = ?;", [note.noteId]); // TODO soft delete?
+                            await Db.instance.database!.rawDelete("DELETE FROM tag  WHERE tag_id NOT IN (SELECT DISTINCT tag_id FROM note_to_tag);");
+                            setState(() {}); // refresh
+                          }
+                        },
+                        child: TrixContainer(child: TextButton(
+                          child: Text(note.note.substring(0, min(note.note.length, 32))), // TODO 32 is total char count which is wrong
+                          onPressed: () => setState(() {
+                            _noteId = note.noteId;
+                            _mainCtrl.text = note.note;
+                            _tagsCtrl.text = note.tags;
+                            _currentTag = null;
+                          }),
+                        )),
+                      )
+                    ).toList();
+                    return ListView(scrollDirection: Axis.horizontal, children: children); // TODO use ListView.builder for better performance
+                  } else return const CircularProgressIndicator();
+                },
+              )),
             ),
           ],
         ),
