@@ -76,6 +76,7 @@ class _MyHomePageState extends State<MyHomePage> {
             _noteId = 0;
             _mainCtrl.text = "";
             _tagsCtrl.text = "";
+            _currentTag = null;
           })),
         ),
         body: Db.instance.database == null ? const Center(child: Text("Welcome!\nOpen or create a new DB file")) : Column(
@@ -92,11 +93,12 @@ class _MyHomePageState extends State<MyHomePage> {
                           if (snapshot.hasData) {
                             final tags = snapshot.data!.map((tag) => Padding(
                               padding: const EdgeInsets.only(top: 2),
-                              child: OutlinedButton(child: Text(tag), onPressed: () {
-                                setState(() {
-                                  _currentTag = tag;
-                                });
-                              }),
+                              child: OutlinedButton(child: Text(tag), onPressed: () => setState(() {
+                                _noteId = 0;
+                                _mainCtrl.text = "";
+                                _tagsCtrl.text = "";
+                                _currentTag = tag;
+                              })),
                             )).toList();
                             return ListView( children: [const Text("Tags", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)), ...tags]);
                           } else return const CircularProgressIndicator();
@@ -218,7 +220,9 @@ class _MyHomePageState extends State<MyHomePage> {
         await FlutterPlatformAlert.showAlert(windowTitle: "Success", text: "New note added");
         setState(() {
           _noteId = newNoteId;
-          // text and tags are kept
+          //! _mainCtrl.text = same;
+          //! _tagsCtrl.text = same;
+          //! _currentTag = null;
         });
       } else { // UPDATE
         await Db.instance.database!.rawUpdate("UPDATE note SET data = ? WHERE note_id = ?;", [data, _noteId]);
