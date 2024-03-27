@@ -158,8 +158,8 @@ class _MyHomePageState extends State<MyHomePage> {
                           ],
                           onItemSelected: (item) async {
                             if (item.title == deleteKey) {
-                              await Db.instance.database!.rawDelete("DELETE FROM note WHERE note_id = ?;", [note.noteId]);
-                              // TODO delete tags
+                              await Db.instance.database!.rawDelete("DELETE FROM note WHERE note_id = ?;", [note.noteId]); // TODO soft delete?
+                              await Db.instance.database!.rawDelete("DELETE FROM tag  WHERE tag_id NOT IN (SELECT DISTINCT tag_id FROM note_to_tag);");
                               setState(() {}); // refresh
                             }
                           },
