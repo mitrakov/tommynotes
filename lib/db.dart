@@ -8,11 +8,11 @@ class Db {
   Database? get database => _database;
 
   Future<void> openDb(String path) async {
-    _database = await openDatabase(path);
+    _database = await openDatabase(path, onConfigure: _enableFk);
   }
 
   Future<void> createDb(String path) async {
-    _database = await openDatabase(path, version: 1, onCreate: (db, version) async {
+    _database = await openDatabase(path, version: 1, onConfigure: _enableFk, onCreate: (db, version) async {
       await db.execute("""
         CREATE TABLE note (
           note_id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
@@ -64,5 +64,10 @@ class Db {
 
       await db.execute("INSERT INTO metadata (key, value) VALUES ('author', 'Artem Mitrakov, https://github.com/mitrakov, mitrakov-artem@yandex.ru'), ('schema_version', '1');");
     });
+  }
+
+  // this is necessary to enable Foreign Keys support!
+  void _enableFk(Database db) async {
+    await db.execute("PRAGMA foreign_keys=ON;");
   }
 }
