@@ -5,12 +5,14 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_platform_alert/flutter_platform_alert.dart';
 import 'package:markdown_widget/widget/markdown.dart';
+import 'package:native_context_menu/native_context_menu.dart';
 import 'package:tommynotes/db.dart';
 import 'package:tommynotes/note.dart';
 import 'package:tommynotes/settings.dart';
 import 'package:tommynotes/trixcontainer.dart';
 
 const String lastOpenPathKey = "LAST_OPEN_PATH";
+const String deleteKey = "Delete";
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized(); // allow async code in main()
@@ -130,19 +132,31 @@ class _MyHomePageState extends State<MyHomePage> {
                     if (snapshot.hasData) {
                       final futureResult = snapshot.data!;
                       final children = futureResult.map((note) =>
-                        TrixContainer(
-                          child: TextButton(child: Text(note.note.substring(0, min(note.note.length, 32))), onPressed: () => setState(() {
-                            _noteId = note.noteId;
-                            _mainCtrl.text = note.note;
-                            _tagsCtrl.text = note.tags;
-                          }))
+                        ContextMenuRegion(
+                          menuItems: [
+                            MenuItem(title: deleteKey),
+                          ],
+                          onItemSelected: (item) async {
+                            if (item.title == deleteKey) {
+                              await Db.instance.database!.rawDelete("DELETE FROM note WHERE note_id = ?;", [note.noteId]);
+                              // TODO delete tags
+                              setState(() {}); // refresh
+                            }
+                          },
+                          child: TrixContainer(
+                            child: TextButton(child: Text(note.note.substring(0, min(note.note.length, 32))), onPressed: () => setState(() {
+                              _noteId = note.noteId;
+                              _mainCtrl.text = note.note;
+                              _tagsCtrl.text = note.tags;
+                            }))
+                          ),
                         )).toList(); // TODO 32 is total char count which is wrong
                       return ListView(scrollDirection: Axis.horizontal, children: children); // TODO use ListView.builder
                     } else return const CircularProgressIndicator();
                   },
                 ),
               ),
-            )
+            ),
           ],
         ),
       ),
