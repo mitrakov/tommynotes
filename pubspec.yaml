@@ -1,7 +1,7 @@
 name: tommynotes
 description: "Domingo Virtual Notes"
 publish_to: 'none'
-version: 24.3.21+1
+version: 24.3.29+1
 
 environment:
   sdk: '>=3.2.6 <4.0.0'
