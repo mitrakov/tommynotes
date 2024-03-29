@@ -190,12 +190,7 @@ class _MyHomePageState extends State<MyHomePage> {
     if (data.isNotEmpty) {
       if (_noteId == 0) { // INSERT
         final newNoteId = await Db.instance.database!.rawInsert("INSERT INTO note (data) VALUES (?);", [data]);
-        tags.forEach((tag) async {
-          final tagIdOpt = await Db.instance.database!.rawQuery("SELECT tag_id FROM tag WHERE name = ?;", [tag]);
-          final tagId = tagIdOpt.isNotEmpty ? int.parse(tagIdOpt.first["tag_id"].toString()) : await Db.instance.database!.rawInsert("INSERT INTO tag (name) VALUES (?);", [tag]);
-          
-          await Db.instance.database!.rawInsert("INSERT INTO note_to_tag (note_id, tag_id) VALUES (?, ?);", [newNoteId, tagId]);
-        });
+        await _addTags(newNoteId, tags);
         await FlutterPlatformAlert.showAlert(windowTitle: "Success", text: "New note added");
         setState(() {
           _noteId = newNoteId;
@@ -259,18 +254,20 @@ class _MyHomePageState extends State<MyHomePage> {
     final addTags = newTags.difference(oldTags);
     print("noteId = $_noteId; rmTags = $rmTags; addTags = $addTags");
 
-    // removing
     // FROM https://github.com/tekartik/sqflite/blob/master/sqflite/doc/sql.md:
     // A common mistake is to expect to use IN (?) and give a list of values. This does not work. Instead you should list each argument one by one.
     final IN = List.filled(rmTags.length, '?').join(', ');
     await Db.instance.database!.rawDelete("DELETE FROM note_to_tag WHERE note_id = ? AND tag_id IN (SELECT tag_id FROM tag WHERE name IN ($IN));", [_noteId, ...rmTags]);
     await Db.instance.database!.rawDelete("DELETE FROM tag WHERE tag_id NOT IN (SELECT DISTINCT tag_id FROM note_to_tag);");
+    await _addTags(_noteId, addTags);
+  }
 
-    // adding
-    addTags.forEach((tag) async { // TODO extract
+  Future<void> _addTags(int noteId, Iterable<String> tags) async {
+    tags.forEach((tag) async {
       final tagIdOpt = await Db.instance.database!.rawQuery("SELECT tag_id FROM tag WHERE name = ?;", [tag]);
       final tagId = tagIdOpt.isNotEmpty ? int.parse(tagIdOpt.first["tag_id"].toString()) : await Db.instance.database!.rawInsert("INSERT INTO tag (name) VALUES (?);", [tag]);
-      await Db.instance.database!.rawInsert("INSERT INTO note_to_tag (note_id, tag_id) VALUES (?, ?);", [_noteId, tagId]);
+
+      await Db.instance.database!.rawInsert("INSERT INTO note_to_tag (note_id, tag_id) VALUES (?, ?);", [noteId, tagId]);
     });
   }
 }
