@@ -188,12 +188,12 @@ class _MyHomePageState extends State<MyHomePage> {
     if (data.isNotEmpty) {
       if (_noteId == 0) { // INSERT
         final newNoteId = await Db.instance.database!.rawInsert("INSERT INTO note (data) VALUES (?);", [data]);
-        await _addTags(newNoteId, tags); // TODO _updateTags() has no args
+        await _addTags(newNoteId, tags);
         await FlutterPlatformAlert.showAlert(windowTitle: "Success", text: "New note added");
         _setState(noteId: newNoteId, oldTags: _oldTags, currentTag: null, mainCtrl: _mainCtrl.text, tagsCtrl: _tagsCtrl.text);
       } else { // UPDATE
         await Db.instance.database!.rawUpdate("UPDATE note SET data = ? WHERE note_id = ?;", [data, _noteId]);
-        await _updateTags();             // TODO _addTags() has 2 args
+        await _updateTags();
         await FlutterPlatformAlert.showAlert(windowTitle: "Success", text: "Updated");
         _setState(noteId: _noteId, oldTags: _tagsCtrl.text, currentTag: null, mainCtrl: _mainCtrl.text, tagsCtrl: _tagsCtrl.text);
       }
