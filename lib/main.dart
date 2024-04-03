@@ -210,10 +210,15 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   void _openDbFile(String path) async {
-    // TODO check if file removed
-    await Db.instance.openDb(path);
-    _addRecentFile(path);
-    _setState(noteId: 0, oldTags: "", currentTag: null, mainCtrl: "", tagsCtrl: "");
+    if (File(path).existsSync()) {
+      await Db.instance.openDb(path);
+      _addRecentFile(path);
+      _setState(noteId: 0, oldTags: "", currentTag: null, mainCtrl: "", tagsCtrl: "");
+    } else {
+      FlutterPlatformAlert.showAlert(windowTitle: "Error", text: 'File not found:\n$path');
+      _removeFromRecentFiles(path);
+      setState(() {}); // update menu
+    }
   }
 
   void _openDbFileWithDialog() async {
@@ -230,6 +235,13 @@ class _MyHomePageState extends State<MyHomePage> {
     if (list.contains(path))              // remove possible duplicates
       list.remove(path);
     list.insert(0, path);                 // prepend to the list
+    settings.setStringList(recentFilesKey, list);
+  }
+
+  void _removeFromRecentFiles(String path) {
+    final settings = Settings.instance.settings;
+    final list = settings.getStringList(recentFilesKey) ?? [];
+    list.remove(path);
     settings.setStringList(recentFilesKey, list);
   }
 
