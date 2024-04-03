@@ -11,7 +11,7 @@ import 'package:tommynotes/note.dart';
 import 'package:tommynotes/settings.dart';
 import 'package:tommynotes/trixcontainer.dart';
 
-const String lastOpenPathKey = "LAST_OPEN_PATH";
+const String recentFilesKey = "RECENT_FILES";
 const String deleteKey = "Delete";
 
 void main() {
@@ -47,23 +47,27 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  final TextEditingController _mainCtrl = TextEditingController();
-  final TextEditingController _tagsCtrl = TextEditingController();
-  int _noteId = 0;
-  String _tags = "";
-  String? _currentTag;
+  final TextEditingController _mainCtrl = TextEditingController(); // main text in "Edit" mode
+  final TextEditingController _tagsCtrl = TextEditingController(); // comma-separated text in tags textbox
+  int _noteId = 0;                                                 // ID of the note to edit (0 = new note)
+  String _oldTags = "";                                            // copy of "_tagsCtrl" to find the diff on update
+  String? _currentTag;                                             // user-selected tag to display related notes (usually null)
 
   @override
   Widget build(BuildContext context) {
+    final recentFilesMenus = Settings.instance.settings.getStringList(recentFilesKey)?.map((path) =>
+      PlatformMenuItem(label: path, onSelected: () => _openDbFile(path))
+    ).toList() ?? [];
+
     return PlatformMenuBar(
       menus: [
         PlatformMenu(
           label: "Hey-Hey",
           menus: [
             PlatformMenuItemGroup(members: [
-              PlatformMenuItem(label: "New DB file", onSelected: _newDbFile),
-              PlatformMenuItem(label: "Open DB file", onSelected: _openDbFile),
-              PlatformMenuItem(label: "Open latest DB file", onSelected: _openLatestDbFile),
+              PlatformMenuItem(label: "New file", onSelected: _newDbFile),
+              PlatformMenuItem(label: "Open...", onSelected: _openDbFileWithDialog),
+              PlatformMenu(label: "Open recent", menus: recentFilesMenus),
             ]),
             PlatformMenuItem(label: "Quit", onSelected: () => exit(0)),
           ],
@@ -73,12 +77,7 @@ class _MyHomePageState extends State<MyHomePage> {
         appBar: AppBar(
           backgroundColor: Theme.of(context).colorScheme.inversePrimary,
           title: Text(widget.title),
-          leading: IconButton(icon: const Icon(Icons.add_box_rounded), onPressed: () => setState(() {
-            _noteId = 0;
-            _mainCtrl.text = "";
-            _tagsCtrl.text = "";
-            _currentTag = null;
-          })),
+          leading: IconButton(icon: const Icon(Icons.add_box_rounded), onPressed: () => _setState(noteId: 0, oldTags: "", currentTag: null, mainCtrl: "", tagsCtrl: "")),
         ),
         body: Db.instance.database == null ? const Center(child: Text("Welcome!\nOpen or create a new DB file")) : Column(
           children: [
@@ -93,12 +92,7 @@ class _MyHomePageState extends State<MyHomePage> {
                         if (snapshot.hasData) {
                           final tags = snapshot.data!.map((tag) => Padding(
                             padding: const EdgeInsets.only(top: 2),
-                            child: OutlinedButton(child: Text(tag), onPressed: () => setState(() {
-                              _noteId = 0;
-                              _mainCtrl.text = "";
-                              _tagsCtrl.text = "";
-                              _currentTag = tag;
-                            })),
+                            child: OutlinedButton(child: Text(tag), onPressed: () => _setState(noteId: 0, oldTags: "", currentTag: tag, mainCtrl: "", tagsCtrl: "")),
                           )).toList();
                           return ListView( children: [const Text("Tags", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)), ...tags]);
                         } else return const CircularProgressIndicator();
@@ -147,13 +141,7 @@ class _MyHomePageState extends State<MyHomePage> {
                         },
                         child: TrixContainer(child: TextButton(
                           child: Text(note.note.substring(0, min(note.note.length, 32))), // TODO 32 is total char count which is wrong
-                          onPressed: () => setState(() {
-                            _noteId = note.noteId;
-                            _tags = note.tags;
-                            _mainCtrl.text = note.note;
-                            _tagsCtrl.text = note.tags;
-                            _currentTag = null;
-                          }),
+                          onPressed: () => _setState(noteId: note.noteId, oldTags: note.tags, currentTag: null, mainCtrl: note.note, tagsCtrl: note.tags),
                         )),
                       )
                     ).toList();
@@ -166,6 +154,16 @@ class _MyHomePageState extends State<MyHomePage> {
         ),
       ),
     );
+  }
+
+  void _setState({required int noteId, required String oldTags, required String? currentTag, required String mainCtrl, required String tagsCtrl}) {
+    setState(() { // list all state variables here!
+      _mainCtrl.text = mainCtrl;
+      _tagsCtrl.text = tagsCtrl;
+      _noteId = noteId;
+      _oldTags = oldTags;
+      _currentTag = currentTag;
+    });
   }
 
   Future<Iterable<Note>> _getNotes() async {
@@ -184,26 +182,20 @@ class _MyHomePageState extends State<MyHomePage> {
     final data = _mainCtrl.text.trim();
     final tags = _tagsCtrl.text.split(",").map((tag) => tag.trim()).where((tag) => tag.isNotEmpty);
     if (tags.isEmpty) {
-      FlutterPlatformAlert.showAlert(windowTitle: "Tag required", text: 'Please add at least 1 tag, e.g. "Work", "New" or "TODO"');
+      FlutterPlatformAlert.showAlert(windowTitle: "Tag required", text: 'Please add at least 1 tag,\ne.g. "Work", "New" or "TODO"');
       return;
     }
     if (data.isNotEmpty) {
       if (_noteId == 0) { // INSERT
         final newNoteId = await Db.instance.database!.rawInsert("INSERT INTO note (data) VALUES (?);", [data]);
-        await _addTags(newNoteId, tags);
+        await _addTags(newNoteId, tags); // TODO _updateTags() has no args
         await FlutterPlatformAlert.showAlert(windowTitle: "Success", text: "New note added");
-        setState(() {
-          _noteId = newNoteId;
-          _currentTag = null;
-        });
+        _setState(noteId: newNoteId, oldTags: _oldTags, currentTag: null, mainCtrl: _mainCtrl.text, tagsCtrl: _tagsCtrl.text);
       } else { // UPDATE
         await Db.instance.database!.rawUpdate("UPDATE note SET data = ? WHERE note_id = ?;", [data, _noteId]);
-        await _updateTags();
+        await _updateTags();             // TODO _addTags() has 2 args
         await FlutterPlatformAlert.showAlert(windowTitle: "Success", text: "Updated");
-        setState(() {
-          _tags = _tagsCtrl.text;
-          _currentTag = null;
-        });
+        _setState(noteId: _noteId, oldTags: _tagsCtrl.text, currentTag: null, mainCtrl: _mainCtrl.text, tagsCtrl: _tagsCtrl.text);
       }
     }
   }
@@ -211,34 +203,34 @@ class _MyHomePageState extends State<MyHomePage> {
   void _newDbFile() async {
     final path = await FilePicker.platform.saveFile(dialogTitle: "Create a new DB file", fileName: "workspace.db", allowedExtensions: ["db"], lockParentWindow: true);
     if (path != null) {
-      Settings.instance.settings.setString(lastOpenPathKey, path);
       await Db.instance.createDb(path);
-      setState(() {}); // refresh
+      _addRecentFile(path);
+      _setState(noteId: 0, oldTags: "", currentTag: null, mainCtrl: "", tagsCtrl: "");
     }
   }
 
-  void _openDbFile() async {
-    final path = await _getStartFile();
-    if (path != null) {
-      await Db.instance.openDb(path);
-      setState(() {}); // refresh
-    }
+  void _openDbFile(String path) async {
+    // TODO check if file removed
+    await Db.instance.openDb(path);
+    _addRecentFile(path);
+    _setState(noteId: 0, oldTags: "", currentTag: null, mainCtrl: "", tagsCtrl: "");
   }
 
-  void _openLatestDbFile() async {
-    final path = Settings.instance.settings.getString(lastOpenPathKey) ?? await _getStartFile();
-    if (path != null) {
-      await Db.instance.openDb(path);
-      setState(() {}); // refresh
-    }
-  }
-
-  Future<String?> _getStartFile() async {
+  void _openDbFileWithDialog() async {
     final FilePickerResult? res = await FilePicker.platform.pickFiles(dialogTitle: "Select a DB file", type: FileType.custom, allowedExtensions: ["db"], lockParentWindow: true);
     final path = res?.files.first.path;
     if (path != null)
-      Settings.instance.settings.setString(lastOpenPathKey, path);
-    return path;
+      _openDbFile(path);
+  }
+
+  void _addRecentFile(String path) {
+    final settings = Settings.instance.settings;
+    final list = settings.getStringList(recentFilesKey) ?? [];
+    if (list.firstOrNull == path) return; // no changes needed
+    if (list.contains(path))              // remove possible duplicates
+      list.remove(path);
+    list.insert(0, path);                 // prepend to the list
+    settings.setStringList(recentFilesKey, list);
   }
 
   Future<Widget> _searchByTag(String tag) async {
@@ -248,7 +240,7 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   Future<void> _updateTags() async {
-    final oldTags = _tags         .split(",").map((tag) => tag.trim()).where((tag) => tag.isNotEmpty).toSet();
+    final oldTags = _oldTags      .split(",").map((tag) => tag.trim()).where((tag) => tag.isNotEmpty).toSet();
     final newTags = _tagsCtrl.text.split(",").map((tag) => tag.trim()).where((tag) => tag.isNotEmpty).toSet();
     final rmTags  = oldTags.difference(newTags);
     final addTags = newTags.difference(oldTags);
