@@ -16,6 +16,7 @@ dependencies:
   shared_preferences: 2.2.2        # key-value storage
   flutter_platform_alert: 0.5.1    # simple native platform dialogs
   native_context_menu: 0.2.2+5     # context menu
+  package_info_plus: 6.0.0         # get version, build and app name
 
 dev_dependencies:
   flutter_test:

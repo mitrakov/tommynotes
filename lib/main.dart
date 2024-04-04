@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_platform_alert/flutter_platform_alert.dart';
 import 'package:markdown_widget/markdown_widget.dart';
 import 'package:native_context_menu/native_context_menu.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:tommynotes/db.dart';
 import 'package:tommynotes/note.dart';
 import 'package:tommynotes/settings.dart';
@@ -79,11 +80,17 @@ class _MyHomePageState extends State<MyHomePage> {
           label: "",
           menus: [
             PlatformMenuItemGroup(members: [
-              PlatformMenuItem(label: "New file", onSelected: _newDbFile),
-              PlatformMenuItem(label: "Open...", onSelected: _openDbFileWithDialog),
-              PlatformMenu(label: "Open recent", menus: recentFilesMenus),
+              PlatformMenuItem(label: "About Tommynotes", onSelected: _showAboutDialog),
             ]),
             PlatformMenuItem(label: "Quit", onSelected: () => exit(0)),
+          ],
+        ),
+        PlatformMenu(
+          label: "File",
+          menus: [
+            PlatformMenuItem(label: "New file", onSelected: _newDbFile),
+            PlatformMenuItem(label: "Open...", onSelected: _openDbFileWithDialog),
+            PlatformMenu(label: "Open recent", menus: recentFilesMenus),
           ],
         ),
       ],
@@ -245,6 +252,12 @@ class _MyHomePageState extends State<MyHomePage> {
     final path = res?.files.first.path;
     if (path != null)
       _openDbFile(path);
+  }
+  
+  void _showAboutDialog() async {
+    final info = await PackageInfo.fromPlatform();
+    final text = "v${info.version} (build: ${info.buildNumber})\n\n© Artem Mitrakov. All rights reserved\nmitrakov-artem@yandex.ru";
+    FlutterPlatformAlert.showAlert(windowTitle: info.appName, text: text, iconStyle: IconStyle.information);
   }
 
   void _addRecentFile(String path) {
