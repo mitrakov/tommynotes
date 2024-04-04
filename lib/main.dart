@@ -16,9 +16,9 @@ import 'package:tommynotes/trixicontext.dart';
 const String recentFilesKey = "RECENT_FILES";
 const String deleteKey = "Delete";
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized(); // allow async code in main()
-  Settings.instance.init();
+  await Settings.instance.init(); // TODO check how long it takes
   runApp(const MyApp());
 }
 

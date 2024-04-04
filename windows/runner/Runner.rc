@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "com.mitrakoff.self" "\0"
-            VALUE "FileDescription", "tommynotes" "\0"
+            VALUE "FileDescription", "Tommynotes" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "tommynotes" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2024 com.mitrakoff.self. All rights reserved." "\0"
-            VALUE "OriginalFilename", "tommynotes.exe" "\0"
-            VALUE "ProductName", "tommynotes" "\0"
+            VALUE "InternalName", "Tommynotes" "\0"
+            VALUE "LegalCopyright", "Copyright © 2024 Artem Mitrakov (mitrakov-artem@yandex.ru). All rights reserved." "\0"
+            VALUE "OriginalFilename", "Tommynotes.exe" "\0"
+            VALUE "ProductName", "Tommynotes" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END
