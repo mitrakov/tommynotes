@@ -10,6 +10,7 @@ import 'package:tommynotes/db.dart';
 import 'package:tommynotes/note.dart';
 import 'package:tommynotes/settings.dart';
 import 'package:tommynotes/trixcontainer.dart';
+import 'package:tommynotes/trixicontext.dart';
 
 const String recentFilesKey = "RECENT_FILES";
 const String deleteKey = "Delete";
@@ -68,7 +69,6 @@ class _MyHomePageState extends State<MyHomePage> {
 
   @override
   Widget build(BuildContext context) {
-
     final recentFilesMenus = Settings.instance.settings.getStringList(recentFilesKey)?.map((path) =>
       PlatformMenuItem(label: path, onSelected: () => _openDbFile(path))
     ).toList() ?? [];
@@ -88,17 +88,12 @@ class _MyHomePageState extends State<MyHomePage> {
         ),
       ],
       child: Scaffold(
-        appBar: AppBar(
-          backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-          title: Text(widget.title),
-          leading: IconButton(icon: const Icon(Icons.add_box_rounded), onPressed: () => _setState(noteId: 0, oldTags: "", currentTag: null, mainCtrl: "", tagsCtrl: "")),
-        ),
         body: Db.instance.database == null ? const Center(child: Text("Welcome!\nOpen or create a new DB file")) : Column(
           children: [
             Flexible(
               flex: 8,
-              child: Row(children: [
-                Expanded(
+              child: Row(children: [ // [left: tags, right: main window]
+                Expanded( // tags
                   child: TrixContainer(
                     child: FutureBuilder(
                       future: _getTags(),
@@ -108,17 +103,27 @@ class _MyHomePageState extends State<MyHomePage> {
                             padding: const EdgeInsets.only(top: 2),
                             child: OutlinedButton(child: Text(tag), onPressed: () => _setState(noteId: 0, oldTags: "", currentTag: tag, mainCtrl: "", tagsCtrl: "")),
                           )).toList();
-                          return ListView( children: [const Text("Tags", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)), ...tags]);
+                          return ListView(children: [
+                            Row(children: [
+                              TrixIconTextButton.icon(
+                                icon: const Icon(Icons.add_box_rounded),
+                                label: const Text("New"),
+                                onPressed: () => _setState(noteId: 0, oldTags: "", currentTag: null, mainCtrl: "", tagsCtrl: ""),
+                              ),
+                            ]),
+                            const Text("Tags", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+                            ...tags
+                          ]);
                         } else return const CircularProgressIndicator();
                       },
                     ),
                   ),
                 ),
-                Flexible(
+                Flexible( // main window
                   flex: 6,
-                  child: Column(children: [
+                  child: Column(children: [ // [top: edit/render panels, bottom: edit-tags/buttons panels]
                     Expanded(child: _currentTag == null
-                      ? Row(children: [
+                      ? Row(children: [ // [left: edit panel, right: render panel]
                           Expanded(child: TrixContainer(child: TextField(controller: _mainCtrl, maxLines: 1024, onChanged: (s) => setState(() {})))),
                           Expanded(child: TrixContainer(child: MarkdownWidget(data: _mainCtrl.text))),
                         ])
