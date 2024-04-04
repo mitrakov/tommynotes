@@ -4,7 +4,7 @@ import 'dart:math';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_platform_alert/flutter_platform_alert.dart';
-import 'package:markdown_widget/widget/markdown.dart';
+import 'package:markdown_widget/markdown_widget.dart';
 import 'package:native_context_menu/native_context_menu.dart';
 import 'package:tommynotes/db.dart';
 import 'package:tommynotes/note.dart';
@@ -47,6 +47,19 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
+  final _miniConfig = MarkdownConfig(configs: [                    // config to render small notes at the bottom
+    const HrConfig(height: 0.2),
+    const H1Config(style: TextStyle(fontSize: 12)),
+    const H2Config(style: TextStyle(fontSize: 11)),
+    const H3Config(style: TextStyle(fontSize: 10)),
+    const H4Config(style: TextStyle(fontSize: 9)),
+    const H5Config(style: TextStyle(fontSize: 8)),
+    const H6Config(style: TextStyle(fontSize: 7)),
+    const PreConfig(textStyle: TextStyle(fontSize: 10)),
+    const PConfig(textStyle: TextStyle(fontSize: 10)),
+    const CodeConfig(style: TextStyle(fontSize: 10)),
+    const BlockquoteConfig(margin: EdgeInsets.all(2), padding: EdgeInsets.all(2)),
+  ]);
   final TextEditingController _mainCtrl = TextEditingController(); // main text in "Edit" mode
   final TextEditingController _tagsCtrl = TextEditingController(); // comma-separated text in tags textbox
   int _noteId = 0;                                                 // ID of the note to edit (0 = new note)
@@ -55,6 +68,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
   @override
   Widget build(BuildContext context) {
+
     final recentFilesMenus = Settings.instance.settings.getStringList(recentFilesKey)?.map((path) =>
       PlatformMenuItem(label: path, onSelected: () => _openDbFile(path))
     ).toList() ?? [];
@@ -62,7 +76,7 @@ class _MyHomePageState extends State<MyHomePage> {
     return PlatformMenuBar(
       menus: [
         PlatformMenu(
-          label: "Hey-Hey",
+          label: "",
           menus: [
             PlatformMenuItemGroup(members: [
               PlatformMenuItem(label: "New file", onSelected: _newDbFile),
@@ -140,7 +154,7 @@ class _MyHomePageState extends State<MyHomePage> {
                           }
                         },
                         child: TrixContainer(child: TextButton(
-                          child: Text(note.note.substring(0, min(note.note.length, 32))), // TODO 32 is total char count which is wrong
+                          child: SizedBox(width: 200, child: MarkdownWidget(data: _miniNote(note.note), shrinkWrap: true, selectable: false, config: _miniConfig)),
                           onPressed: () => _setState(noteId: note.noteId, oldTags: note.tags, currentTag: null, mainCtrl: note.note, tagsCtrl: note.tags),
                         )),
                       )
@@ -274,4 +288,6 @@ class _MyHomePageState extends State<MyHomePage> {
       await Db.instance.database!.rawInsert("INSERT INTO note_to_tag (note_id, tag_id) VALUES (?, ?);", [noteId, tagId]);
     });
   }
+
+  String _miniNote(String note) => note.split("\n").take(4).map((s) => s.substring(0, min(32, s.length))).join("\n");
 }
