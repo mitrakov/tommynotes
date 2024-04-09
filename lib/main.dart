@@ -8,6 +8,8 @@ import 'package:flutter_platform_alert/flutter_platform_alert.dart';
 import 'package:markdown_widget/markdown_widget.dart';
 import 'package:native_context_menu/native_context_menu.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import "package:path/path.dart" as path;
+import 'package:window_manager/window_manager.dart';
 import 'package:tommynotes/db.dart';
 import 'package:tommynotes/note.dart';
 import 'package:tommynotes/settings.dart';
@@ -20,6 +22,7 @@ const String deleteKey = "Delete";
 void main() async {
   WidgetsFlutterBinding.ensureInitialized(); // allow async code in main()
   await Settings.instance.init(); // TODO check how long it takes
+  await windowManager.ensureInitialized();
   runApp(const MyApp());
 }
 
@@ -65,12 +68,15 @@ class _MyHomePageState extends State<MyHomePage> {
   ]);
   final TextEditingController _mainCtrl = TextEditingController(); // main text in "Edit" mode
   final TextEditingController _tagsCtrl = TextEditingController(); // comma-separated text in tags textbox
+  String? _path;                                                   // current path to DB file
   int _noteId = 0;                                                 // ID of the note to edit (0 = new note)
   String _oldTags = "";                                            // copy of "_tagsCtrl" to find the diff on update
   String? _currentTag;                                             // user-selected tag to display related notes (usually null)
 
   @override
   Widget build(BuildContext context) {
+    windowManager.setTitle(_path != null ? path.basename(_path!) : "Tommynotes");
+
     final recentFilesMenus = Settings.instance.settings.getStringList(recentFilesKey)?.map((path) =>
       PlatformMenuItem(label: path, onSelected: () => _openDbFile(path))
     ).toList() ?? [];
@@ -130,14 +136,14 @@ class _MyHomePageState extends State<MyHomePage> {
                               if (snapshot.hasData) {
                                 final tags = snapshot.data!.map((tag) => Padding(
                                   padding: const EdgeInsets.only(top: 2),
-                                  child: OutlinedButton(child: Text(tag), onPressed: () => _setState(noteId: 0, oldTags: "", currentTag: tag, mainCtrl: "", tagsCtrl: "")),
+                                  child: OutlinedButton(child: Text(tag), onPressed: () => _setState(noteId: 0, oldTags: "", path: _path, currentTag: tag, mainCtrl: "", tagsCtrl: "")),
                                 )).toList();
                                 return ListView(children: [
                                   Row(children: [
                                     TrixIconTextButton.icon(
                                       icon: const Icon(Icons.add_box_rounded),
                                       label: const Text("New"),
-                                      onPressed: () => _setState(noteId: 0, oldTags: "", currentTag: null, mainCtrl: "", tagsCtrl: ""),
+                                      onPressed: () => _setState(noteId: 0, oldTags: "", path: _path, currentTag: null, mainCtrl: "", tagsCtrl: ""),
                                     ),
                                   ]),
                                   const Text("Tags", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
@@ -189,7 +195,7 @@ class _MyHomePageState extends State<MyHomePage> {
                               },
                               child: TrixContainer(child: TextButton(
                                 child: SizedBox(width: 200, child: MarkdownWidget(data: _miniNote(note.note), shrinkWrap: true, selectable: false, config: _miniConfig)),
-                                onPressed: () => _setState(noteId: note.noteId, oldTags: note.tags, currentTag: null, mainCtrl: note.note, tagsCtrl: note.tags),
+                                onPressed: () => _setState(noteId: note.noteId, oldTags: note.tags, path: _path, currentTag: null, mainCtrl: note.note, tagsCtrl: note.tags),
                               )),
                             )
                           ).toList();
@@ -207,10 +213,11 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 
-  void _setState({required int noteId, required String oldTags, required String? currentTag, required String mainCtrl, required String tagsCtrl}) {
+  void _setState({required int noteId, required String oldTags, required String? path, required String? currentTag, required String mainCtrl, required String tagsCtrl}) {
     setState(() { // list all state variables here!
       _mainCtrl.text = mainCtrl;
       _tagsCtrl.text = tagsCtrl;
+      _path = path;
       _noteId = noteId;
       _oldTags = oldTags;
       _currentTag = currentTag;
@@ -235,20 +242,20 @@ class _MyHomePageState extends State<MyHomePage> {
     final data = _mainCtrl.text.trim();
     final tags = _tagsCtrl.text.split(",").map((tag) => tag.trim()).where((tag) => tag.isNotEmpty);
     if (tags.isEmpty) {
-      FlutterPlatformAlert.showAlert(windowTitle: "Tag required", text: 'Please add at least 1 tag,\ne.g. "Work", "New" or "TODO"');
+      FlutterPlatformAlert.showAlert(windowTitle: "Tag required", text: 'Please add at least 1 tag,\ne.g. "Work", "New" or "TODO"', iconStyle: IconStyle.warning);
       return;
     }
     if (data.isNotEmpty) {
       if (_noteId == 0) { // INSERT
         final newNoteId = await Db.instance.database!.rawInsert("INSERT INTO note (data) VALUES (?);", [data]);
         await _addTags(newNoteId, tags);
-        await FlutterPlatformAlert.showAlert(windowTitle: "Success", text: "New note added");
-        _setState(noteId: newNoteId, oldTags: _oldTags, currentTag: null, mainCtrl: _mainCtrl.text, tagsCtrl: _tagsCtrl.text);
+        await FlutterPlatformAlert.showAlert(windowTitle: "Success", text: "New note added", iconStyle: IconStyle.information);
+        _setState(noteId: newNoteId, oldTags: _oldTags, path: _path, currentTag: null, mainCtrl: _mainCtrl.text, tagsCtrl: _tagsCtrl.text);
       } else {            // UPDATE
         await Db.instance.database!.rawUpdate("UPDATE note SET data = ? WHERE note_id = ?;", [data, _noteId]);
         await _updateTags();
-        await FlutterPlatformAlert.showAlert(windowTitle: "Success", text: "Updated");
-        _setState(noteId: _noteId, oldTags: _tagsCtrl.text, currentTag: null, mainCtrl: _mainCtrl.text, tagsCtrl: _tagsCtrl.text);
+        await FlutterPlatformAlert.showAlert(windowTitle: "Success", text: "Updated", iconStyle: IconStyle.hand);
+        _setState(noteId: _noteId, oldTags: _tagsCtrl.text, path: _path, currentTag: null, mainCtrl: _mainCtrl.text, tagsCtrl: _tagsCtrl.text);
       }
     }
   }
@@ -258,7 +265,7 @@ class _MyHomePageState extends State<MyHomePage> {
     if (path != null) {
       await Db.instance.createDb(path);
       _addRecentFile(path);
-      _setState(noteId: 0, oldTags: "", currentTag: null, mainCtrl: "", tagsCtrl: "");
+      _setState(noteId: 0, oldTags: "", path: path, currentTag: null, mainCtrl: "", tagsCtrl: "");
     }
   }
 
@@ -266,9 +273,9 @@ class _MyHomePageState extends State<MyHomePage> {
     if (File(path).existsSync()) {
       await Db.instance.openDb(path);
       _addRecentFile(path);
-      _setState(noteId: 0, oldTags: "", currentTag: null, mainCtrl: "", tagsCtrl: "");
+      _setState(noteId: 0, oldTags: "", path: path, currentTag: null, mainCtrl: "", tagsCtrl: "");
     } else {
-      FlutterPlatformAlert.showAlert(windowTitle: "Error", text: 'File not found:\n$path');
+      FlutterPlatformAlert.showAlert(windowTitle: "Error", text: 'File not found:\n$path', iconStyle: IconStyle.error);
       _removeFromRecentFiles(path);
       setState(() {}); // update menu
     }
@@ -283,7 +290,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
   void _closeDbFile() async {
     await Db.instance.closeDb();
-    _setState(noteId: 0, oldTags: "", currentTag: null, mainCtrl: "", tagsCtrl: "");
+    _setState(noteId: 0, oldTags: "", path: null, currentTag: null, mainCtrl: "", tagsCtrl: "");
   }
   
   void _showAboutDialog() async {

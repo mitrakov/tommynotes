@@ -17,6 +17,7 @@ dependencies:
   flutter_platform_alert: 0.5.1    # simple native platform dialogs
   native_context_menu: 0.2.2+5     # context menu
   package_info_plus: 6.0.0         # get version, build and app name
+  window_manager: 0.3.8            # set title to window
 
 dev_dependencies:
   flutter_test:
