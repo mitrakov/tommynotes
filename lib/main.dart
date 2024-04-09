@@ -74,6 +74,12 @@ class _MyHomePageState extends State<MyHomePage> {
   String? _currentTag;                                             // user-selected tag to display related notes (usually null)
 
   @override
+  void initState() {
+    super.initState();
+    // windowManager.setFullScreen(true); TODO: maximize, not full screen!
+  }
+
+  @override
   Widget build(BuildContext context) {
     windowManager.setTitle(_path != null ? path.basename(_path!) : "Tommynotes");
 
@@ -120,8 +126,8 @@ class _MyHomePageState extends State<MyHomePage> {
             CloseDbFileIntent: CallbackAction(onInvoke: (_) => _closeDbFile()),
             CloseAppIntent:    CallbackAction(onInvoke: (_) => exit(0)),
           },
-          child: Focus( // TODO RTFM about FocusNode
-            autofocus: true,
+          child: Focus(               // needed for Shortcuts TODO RTFM about FocusNode
+            autofocus: true,          // focused by default
             child: Scaffold(
               body: Db.instance.database == null ? const Center(child: Text("Welcome!\nOpen or create a new DB file")) : Column(
                 children: [
