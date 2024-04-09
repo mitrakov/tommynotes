@@ -100,15 +100,21 @@ class _MyHomePageState extends State<MyHomePage> {
       ],
       child: Shortcuts(
         shortcuts: {
-          SingleActivator(LogicalKeyboardKey.keyW, meta: Platform.isMacOS, control: !Platform.isMacOS): CloseDbIntent(),
-          SingleActivator(LogicalKeyboardKey.keyQ, meta: Platform.isMacOS, control: !Platform.isMacOS): CloseWindowIntent(),
+          SingleActivator(LogicalKeyboardKey.keyN, meta: Platform.isMacOS, control: !Platform.isMacOS): NewDbFileIntent(),
+          SingleActivator(LogicalKeyboardKey.keyO, meta: Platform.isMacOS, control: !Platform.isMacOS): OpenDbFileIntent(),
+          SingleActivator(LogicalKeyboardKey.keyS, meta: Platform.isMacOS, control: !Platform.isMacOS): SaveNoteIntent(),
+          SingleActivator(LogicalKeyboardKey.keyW, meta: Platform.isMacOS, control: !Platform.isMacOS): CloseDbFileIntent(),
+          SingleActivator(LogicalKeyboardKey.keyQ, meta: Platform.isMacOS, control: !Platform.isMacOS): CloseAppIntent(),
         },
         child: Actions(
           actions: {
-            CloseDbIntent:     CallbackAction(onInvoke: print),
-            CloseWindowIntent: CallbackAction(onInvoke: (_) => exit(0)),
+            NewDbFileIntent:   CallbackAction(onInvoke: (_) => _newDbFile()),
+            OpenDbFileIntent:  CallbackAction(onInvoke: (_) => _openDbFileWithDialog()),
+            SaveNoteIntent:    CallbackAction(onInvoke: (_) => _saveNote()),
+            CloseDbFileIntent: CallbackAction(onInvoke: (_) => _closeDbFile()),
+            CloseAppIntent:    CallbackAction(onInvoke: (_) => exit(0)),
           },
-          child: Focus(
+          child: Focus( // TODO RTFM about FocusNode
             autofocus: true,
             child: Scaffold(
               body: Db.instance.database == null ? const Center(child: Text("Welcome!\nOpen or create a new DB file")) : Column(
@@ -159,7 +165,7 @@ class _MyHomePageState extends State<MyHomePage> {
                             visible: _currentTag == null,
                             child: TrixContainer(child: Row(children: [
                               SizedBox(width: 300, child: TextField(controller: _tagsCtrl, decoration: const InputDecoration(label: Text("Tags")))),
-                              OutlinedButton(onPressed: _saveNote, child: Text(_noteId == 0 ? "Add New" : "Save")),
+                              OutlinedButton(onPressed: _saveNote, child: Text(_noteId == 0 ? "Save" : "Update")),
                             ])),
                           )],
                         ),
@@ -224,6 +230,8 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   void _saveNote() async {
+    if (Db.instance.database == null) return; // user may click ⌘+S on a closed DB file
+
     final data = _mainCtrl.text.trim();
     final tags = _tagsCtrl.text.split(",").map((tag) => tag.trim()).where((tag) => tag.isNotEmpty);
     if (tags.isEmpty) {
@@ -236,7 +244,7 @@ class _MyHomePageState extends State<MyHomePage> {
         await _addTags(newNoteId, tags);
         await FlutterPlatformAlert.showAlert(windowTitle: "Success", text: "New note added");
         _setState(noteId: newNoteId, oldTags: _oldTags, currentTag: null, mainCtrl: _mainCtrl.text, tagsCtrl: _tagsCtrl.text);
-      } else { // UPDATE
+      } else {            // UPDATE
         await Db.instance.database!.rawUpdate("UPDATE note SET data = ? WHERE note_id = ?;", [data, _noteId]);
         await _updateTags();
         await FlutterPlatformAlert.showAlert(windowTitle: "Success", text: "Updated");
@@ -267,7 +275,7 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   void _openDbFileWithDialog() async {
-    final FilePickerResult? res = await FilePicker.platform.pickFiles(dialogTitle: "Select a DB file", type: FileType.custom, allowedExtensions: ["db"], lockParentWindow: true);
+    final FilePickerResult? res = await FilePicker.platform.pickFiles(dialogTitle: "Open a DB file", type: FileType.custom, allowedExtensions: ["db"], lockParentWindow: true);
     final path = res?.files.first.path;
     if (path != null)
       _openDbFile(path);
@@ -334,5 +342,8 @@ class _MyHomePageState extends State<MyHomePage> {
   String _miniNote(String note) => note.split("\n").take(4).map((s) => s.substring(0, min(32, s.length))).join("\n");
 }
 
-class CloseWindowIntent extends Intent {}
-class CloseDbIntent extends Intent {}
+class NewDbFileIntent   extends Intent {}
+class OpenDbFileIntent  extends Intent {}
+class SaveNoteIntent    extends Intent {}
+class CloseDbFileIntent extends Intent {}
+class CloseAppIntent    extends Intent {}
