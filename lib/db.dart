@@ -11,6 +11,10 @@ class Db {
     _database = await openDatabase(path, onConfigure: _enableFk);
   }
 
+  Future<void> closeDb() async {
+    _database?.close().then((_) => _database = null);
+  }
+
   Future<void> createDb(String path) async {
     _database = await openDatabase(path, version: 1, onConfigure: _enableFk, onCreate: (db, version) async {
       await db.execute("""
@@ -48,7 +52,7 @@ class Db {
       await db.execute("""  
         CREATE TABLE note_to_tag (
           note_id INTEGER NOT NULL REFERENCES note (note_id) ON UPDATE RESTRICT ON DELETE CASCADE,
-          tag_id INTEGER NOT NULL REFERENCES tag (tag_id) ON UPDATE RESTRICT ON DELETE CASCADE,
+          tag_id  INTEGER NOT NULL REFERENCES tag (tag_id) ON UPDATE RESTRICT ON DELETE CASCADE,
           created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
           updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
           PRIMARY KEY (note_id, tag_id)

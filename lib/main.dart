@@ -89,9 +89,12 @@ class _MyHomePageState extends State<MyHomePage> {
         PlatformMenu(
           label: "File",
           menus: [
-            PlatformMenuItem(label: "New file", onSelected: _newDbFile),
-            PlatformMenuItem(label: "Open...", onSelected: _openDbFileWithDialog),
-            PlatformMenu(label: "Open recent", menus: recentFilesMenus),
+            PlatformMenuItemGroup(members: [
+              PlatformMenuItem(label: "New File", onSelected: _newDbFile),
+              PlatformMenuItem(label: "Open...", onSelected: _openDbFileWithDialog),
+              PlatformMenu(label: "Open Recent", menus: recentFilesMenus),
+            ]),
+            PlatformMenuItem(label: "Close File", onSelected: _closeDbFile),
           ],
         ),
       ],
@@ -268,6 +271,11 @@ class _MyHomePageState extends State<MyHomePage> {
     final path = res?.files.first.path;
     if (path != null)
       _openDbFile(path);
+  }
+
+  void _closeDbFile() async {
+    await Db.instance.closeDb();
+    _setState(noteId: 0, oldTags: "", currentTag: null, mainCtrl: "", tagsCtrl: "");
   }
   
   void _showAboutDialog() async {
