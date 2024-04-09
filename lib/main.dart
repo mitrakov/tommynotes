@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:math';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_platform_alert/flutter_platform_alert.dart';
 import 'package:markdown_widget/markdown_widget.dart';
 import 'package:native_context_menu/native_context_menu.dart';
@@ -94,89 +95,104 @@ class _MyHomePageState extends State<MyHomePage> {
           ],
         ),
       ],
-      child: Scaffold(
-        body: Db.instance.database == null ? const Center(child: Text("Welcome!\nOpen or create a new DB file")) : Column(
-          children: [
-            Flexible(
-              flex: 8,
-              child: Row(children: [ // [left: tags, right: main window]
-                Expanded( // tags
-                  child: TrixContainer(
-                    child: FutureBuilder(
-                      future: _getTags(),
+      child: Shortcuts(
+        shortcuts: {
+          SingleActivator(LogicalKeyboardKey.keyW, meta: Platform.isMacOS, control: !Platform.isMacOS): CloseDbIntent(),
+          SingleActivator(LogicalKeyboardKey.keyQ, meta: Platform.isMacOS, control: !Platform.isMacOS): CloseWindowIntent(),
+        },
+        child: Actions(
+          actions: {
+            CloseDbIntent:     CallbackAction(onInvoke: print),
+            CloseWindowIntent: CallbackAction(onInvoke: (_) => exit(0)),
+          },
+          child: Focus(
+            autofocus: true,
+            child: Scaffold(
+              body: Db.instance.database == null ? const Center(child: Text("Welcome!\nOpen or create a new DB file")) : Column(
+                children: [
+                  Flexible(
+                    flex: 8,
+                    child: Row(children: [ // [left: tags, right: main window]
+                      Expanded( // tags
+                        child: TrixContainer(
+                          child: FutureBuilder(
+                            future: _getTags(),
+                            builder: (context, snapshot) {
+                              if (snapshot.hasData) {
+                                final tags = snapshot.data!.map((tag) => Padding(
+                                  padding: const EdgeInsets.only(top: 2),
+                                  child: OutlinedButton(child: Text(tag), onPressed: () => _setState(noteId: 0, oldTags: "", currentTag: tag, mainCtrl: "", tagsCtrl: "")),
+                                )).toList();
+                                return ListView(children: [
+                                  Row(children: [
+                                    TrixIconTextButton.icon(
+                                      icon: const Icon(Icons.add_box_rounded),
+                                      label: const Text("New"),
+                                      onPressed: () => _setState(noteId: 0, oldTags: "", currentTag: null, mainCtrl: "", tagsCtrl: ""),
+                                    ),
+                                  ]),
+                                  const Text("Tags", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+                                  ...tags
+                                ]);
+                              } else return const CircularProgressIndicator();
+                            },
+                          ),
+                        ),
+                      ),
+                      Flexible( // main window
+                        flex: 6,
+                        child: Column(children: [ // [top: edit/render panels, bottom: edit-tags/buttons panels]
+                          Expanded(child: _currentTag == null
+                            ? Row(children: [ // [left: edit panel, right: render panel]
+                                Expanded(child: TrixContainer(child: TextField(controller: _mainCtrl, maxLines: 1024, onChanged: (s) => setState(() {})))),
+                                Expanded(child: TrixContainer(child: MarkdownWidget(data: _mainCtrl.text))),
+                              ])
+                            : TrixContainer(child: FutureBuilder(
+                                future: _searchByTag(_currentTag!),
+                                builder: (context, snapshot) => snapshot.data ?? const CircularProgressIndicator(),
+                              )),
+                          ),
+                          Visibility(
+                            visible: _currentTag == null,
+                            child: TrixContainer(child: Row(children: [
+                              SizedBox(width: 300, child: TextField(controller: _tagsCtrl, decoration: const InputDecoration(label: Text("Tags")))),
+                              OutlinedButton(onPressed: _saveNote, child: Text(_noteId == 0 ? "Add New" : "Save")),
+                            ])),
+                          )],
+                        ),
+                      )],
+                    ),
+                  ),
+                  Expanded(
+                    child: TrixContainer(child: FutureBuilder(
+                      future: _getNotes(),
                       builder: (context, snapshot) {
                         if (snapshot.hasData) {
-                          final tags = snapshot.data!.map((tag) => Padding(
-                            padding: const EdgeInsets.only(top: 2),
-                            child: OutlinedButton(child: Text(tag), onPressed: () => _setState(noteId: 0, oldTags: "", currentTag: tag, mainCtrl: "", tagsCtrl: "")),
-                          )).toList();
-                          return ListView(children: [
-                            Row(children: [
-                              TrixIconTextButton.icon(
-                                icon: const Icon(Icons.add_box_rounded),
-                                label: const Text("New"),
-                                onPressed: () => _setState(noteId: 0, oldTags: "", currentTag: null, mainCtrl: "", tagsCtrl: ""),
-                              ),
-                            ]),
-                            const Text("Tags", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
-                            ...tags
-                          ]);
+                          final children = snapshot.data!.map((note) =>
+                            ContextMenuRegion(
+                              menuItems: [MenuItem(title: deleteKey)],
+                              onItemSelected: (item) async {
+                                if (item.title == deleteKey) {
+                                  await Db.instance.database!.rawDelete("DELETE FROM note WHERE note_id = ?;", [note.noteId]); // TODO soft delete?
+                                  await Db.instance.database!.rawDelete("DELETE FROM tag  WHERE tag_id NOT IN (SELECT DISTINCT tag_id FROM note_to_tag);");
+                                  setState(() {}); // refresh
+                                }
+                              },
+                              child: TrixContainer(child: TextButton(
+                                child: SizedBox(width: 200, child: MarkdownWidget(data: _miniNote(note.note), shrinkWrap: true, selectable: false, config: _miniConfig)),
+                                onPressed: () => _setState(noteId: note.noteId, oldTags: note.tags, currentTag: null, mainCtrl: note.note, tagsCtrl: note.tags),
+                              )),
+                            )
+                          ).toList();
+                          return ListView(scrollDirection: Axis.horizontal, children: children); // TODO use ListView.builder for better performance
                         } else return const CircularProgressIndicator();
                       },
-                    ),
+                    )),
                   ),
-                ),
-                Flexible( // main window
-                  flex: 6,
-                  child: Column(children: [ // [top: edit/render panels, bottom: edit-tags/buttons panels]
-                    Expanded(child: _currentTag == null
-                      ? Row(children: [ // [left: edit panel, right: render panel]
-                          Expanded(child: TrixContainer(child: TextField(controller: _mainCtrl, maxLines: 1024, onChanged: (s) => setState(() {})))),
-                          Expanded(child: TrixContainer(child: MarkdownWidget(data: _mainCtrl.text))),
-                        ])
-                      : TrixContainer(child: FutureBuilder(
-                          future: _searchByTag(_currentTag!),
-                          builder: (context, snapshot) => snapshot.data ?? const CircularProgressIndicator(),
-                        )),
-                    ),
-                    Visibility(
-                      visible: _currentTag == null,
-                      child: TrixContainer(child: Row(children: [
-                        SizedBox(width: 300, child: TextField(controller: _tagsCtrl, decoration: const InputDecoration(label: Text("Tags")))),
-                        OutlinedButton(onPressed: _saveNote, child: Text(_noteId == 0 ? "Add New" : "Save")),
-                      ])),
-                    )],
-                  ),
-                )],
+                ],
               ),
             ),
-            Expanded(
-              child: TrixContainer(child: FutureBuilder(
-                future: _getNotes(),
-                builder: (context, snapshot) {
-                  if (snapshot.hasData) {
-                    final children = snapshot.data!.map((note) =>
-                      ContextMenuRegion(
-                        menuItems: [MenuItem(title: deleteKey)],
-                        onItemSelected: (item) async {
-                          if (item.title == deleteKey) {
-                            await Db.instance.database!.rawDelete("DELETE FROM note WHERE note_id = ?;", [note.noteId]); // TODO soft delete?
-                            await Db.instance.database!.rawDelete("DELETE FROM tag  WHERE tag_id NOT IN (SELECT DISTINCT tag_id FROM note_to_tag);");
-                            setState(() {}); // refresh
-                          }
-                        },
-                        child: TrixContainer(child: TextButton(
-                          child: SizedBox(width: 200, child: MarkdownWidget(data: _miniNote(note.note), shrinkWrap: true, selectable: false, config: _miniConfig)),
-                          onPressed: () => _setState(noteId: note.noteId, oldTags: note.tags, currentTag: null, mainCtrl: note.note, tagsCtrl: note.tags),
-                        )),
-                      )
-                    ).toList();
-                    return ListView(scrollDirection: Axis.horizontal, children: children); // TODO use ListView.builder for better performance
-                  } else return const CircularProgressIndicator();
-                },
-              )),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -309,3 +325,6 @@ class _MyHomePageState extends State<MyHomePage> {
 
   String _miniNote(String note) => note.split("\n").take(4).map((s) => s.substring(0, min(32, s.length))).join("\n");
 }
+
+class CloseWindowIntent extends Intent {}
+class CloseDbIntent extends Intent {}
