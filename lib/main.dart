@@ -8,10 +8,9 @@ import 'package:flutter_platform_alert/flutter_platform_alert.dart';
 import 'package:markdown_widget/markdown_widget.dart';
 import 'package:native_context_menu/native_context_menu.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import "package:path/path.dart" as path;
+import "package:path/path.dart" show basename;
 import 'package:window_manager/window_manager.dart';
 import 'package:tommynotes/db.dart';
-import 'package:tommynotes/note.dart';
 import 'package:tommynotes/settings.dart';
 import 'package:tommynotes/trixcontainer.dart';
 import 'package:tommynotes/trixicontext.dart';
@@ -81,7 +80,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
   @override
   Widget build(BuildContext context) {
-    windowManager.setTitle(_path != null ? path.basename(_path!) : "Tommynotes");
+    windowManager.setTitle(_path != null ? basename(_path!) : "Tommynotes");
 
     final recentFilesMenus = Settings.instance.settings.getStringList(recentFilesKey)?.map((path) =>
       PlatformMenuItem(label: path, onSelected: () => _openDbFile(path))
@@ -129,7 +128,7 @@ class _MyHomePageState extends State<MyHomePage> {
           child: Focus(               // needed for Shortcuts TODO RTFM about FocusNode
             autofocus: true,          // focused by default
             child: Scaffold(
-              body: Db.instance.database == null ? const Center(child: Text("Welcome!\nOpen or create a new DB file")) : Column(
+              body: !Db.instance.isConnected() ? const Center(child: Text("Welcome!\nOpen or create a new DB file")) : Column(
                 children: [
                   Flexible(
                     flex: 8,
@@ -137,7 +136,7 @@ class _MyHomePageState extends State<MyHomePage> {
                       Expanded( // tags
                         child: TrixContainer(
                           child: FutureBuilder(
-                            future: _getTags(),
+                            future: Db.instance.getTags(),
                             builder: (context, snapshot) {
                               if (snapshot.hasData) {
                                 final tags = snapshot.data!.map((tag) => Padding(
@@ -186,7 +185,7 @@ class _MyHomePageState extends State<MyHomePage> {
                   ),
                   Expanded(
                     child: TrixContainer(child: FutureBuilder(
-                      future: _getNotes(),
+                      future: Db.instance.getNotes(),
                       builder: (context, snapshot) {
                         if (snapshot.hasData) {
                           final children = snapshot.data!.map((note) =>
@@ -194,8 +193,7 @@ class _MyHomePageState extends State<MyHomePage> {
                               menuItems: [MenuItem(title: deleteKey)],
                               onItemSelected: (item) async {
                                 if (item.title == deleteKey) {
-                                  await Db.instance.database!.rawDelete("DELETE FROM note WHERE note_id = ?;", [note.noteId]); // TODO soft delete?
-                                  await Db.instance.database!.rawDelete("DELETE FROM tag  WHERE tag_id NOT IN (SELECT DISTINCT tag_id FROM note_to_tag);");
+                                  await Db.instance.deleteNote(note.noteId);
                                   setState(() {}); // refresh
                                 }
                               },
@@ -230,20 +228,10 @@ class _MyHomePageState extends State<MyHomePage> {
     });
   }
 
-  Future<Iterable<Note>> _getNotes() async {
-    final dbResult = await Db.instance.database!.rawQuery(
-      "SELECT note_id, data, GROUP_CONCAT(name, ', ') AS tags FROM note INNER JOIN note_to_tag USING (note_id) INNER JOIN tag USING (tag_id) GROUP BY note_id;"
-    );
-    return dbResult.map((e) => Note(noteId: int.parse(e["note_id"].toString()), note: e["data"].toString(), tags: e["tags"].toString()));
-  }
 
-  Future<Iterable<String>> _getTags() async {
-    final dbResult = await Db.instance.database!.rawQuery("SELECT name FROM tag;");
-    return dbResult.map((e) => e["name"].toString());
-  }
 
   void _saveNote() async {
-    if (Db.instance.database == null) return; // user may click ⌘+S on a closed DB file
+    if (!Db.instance.isConnected()) return; // user may click ⌘+S on a closed DB file
 
     final data = _mainCtrl.text.trim();
     final tags = _tagsCtrl.text.split(",").map((tag) => tag.trim()).where((tag) => tag.isNotEmpty);
@@ -253,12 +241,12 @@ class _MyHomePageState extends State<MyHomePage> {
     }
     if (data.isNotEmpty) {
       if (_noteId == 0) { // INSERT
-        final newNoteId = await Db.instance.database!.rawInsert("INSERT INTO note (data) VALUES (?);", [data]);
-        await _addTags(newNoteId, tags);
+        final newNoteId = await Db.instance.insertNote(data);
+        await Db.instance.linkTagsToNote(newNoteId, tags);
         await FlutterPlatformAlert.showAlert(windowTitle: "Success", text: "New note added", iconStyle: IconStyle.information);
         _setState(noteId: newNoteId, oldTags: _oldTags, path: _path, currentTag: null, mainCtrl: _mainCtrl.text, tagsCtrl: _tagsCtrl.text);
       } else {            // UPDATE
-        await Db.instance.database!.rawUpdate("UPDATE note SET data = ? WHERE note_id = ?;", [data, _noteId]);
+        await Db.instance.updateNote(_noteId, data);
         await _updateTags();
         await FlutterPlatformAlert.showAlert(windowTitle: "Success", text: "Updated", iconStyle: IconStyle.hand);
         _setState(noteId: _noteId, oldTags: _tagsCtrl.text, path: _path, currentTag: null, mainCtrl: _mainCtrl.text, tagsCtrl: _tagsCtrl.text);
@@ -323,8 +311,8 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   Future<Widget> _searchByTag(String tag) async {
-    final rows = await Db.instance.database!.rawQuery("SELECT data FROM note INNER JOIN note_to_tag USING (note_id) INNER JOIN tag USING (tag_id) WHERE name = ?;", [tag]);
-    final children = rows.map((e) => TrixContainer(child: MarkdownWidget(data: e["data"].toString(), shrinkWrap: true))).toList();
+    final rows = await Db.instance.searchByTag(tag);
+    final children = rows.map((e) => TrixContainer(child: MarkdownWidget(data: e, shrinkWrap: true))).toList();
     return ListView(children: children);
   }
 
@@ -335,24 +323,11 @@ class _MyHomePageState extends State<MyHomePage> {
     final addTags = newTags.difference(oldTags);
     print("noteId = $_noteId; rmTags = $rmTags; addTags = $addTags");
 
-    // FROM https://github.com/tekartik/sqflite/blob/master/sqflite/doc/sql.md:
-    // A common mistake is to expect to use IN (?) and give a list of values. This does not work. Instead you should list each argument one by one.
-    final IN = List.filled(rmTags.length, '?').join(', ');
-    await Db.instance.database!.rawDelete("DELETE FROM note_to_tag WHERE note_id = ? AND tag_id IN (SELECT tag_id FROM tag WHERE name IN ($IN));", [_noteId, ...rmTags]);
-    await Db.instance.database!.rawDelete("DELETE FROM tag WHERE tag_id NOT IN (SELECT DISTINCT tag_id FROM note_to_tag);");
-    await _addTags(_noteId, addTags);
+    await Db.instance.unlinkTagsFromNote(_noteId, rmTags);
+    await Db.instance.linkTagsToNote(_noteId, addTags);
   }
 
-  Future<void> _addTags(int noteId, Iterable<String> tags) async {
-    tags.forEach((tag) async {
-      final tagIdOpt = await Db.instance.database!.rawQuery("SELECT tag_id FROM tag WHERE name = ?;", [tag]);
-      final tagId = tagIdOpt.isNotEmpty ? int.parse(tagIdOpt.first["tag_id"].toString()) : await Db.instance.database!.rawInsert("INSERT INTO tag (name) VALUES (?);", [tag]);
-
-      await Db.instance.database!.rawInsert("INSERT INTO note_to_tag (note_id, tag_id) VALUES (?, ?);", [noteId, tagId]);
-    });
-  }
-
-  String _miniNote(String note) => note.split("\n").take(4).map((s) => s.substring(0, min(32, s.length))).join("\n");
+  String _miniNote(String note) => note.split("\n").take(4).map((s) => s.substring(0, min(28, s.length))).join("\n");
 }
 
 class NewDbFileIntent   extends Intent {}
