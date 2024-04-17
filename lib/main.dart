@@ -228,8 +228,6 @@ class _MyHomePageState extends State<MyHomePage> {
     });
   }
 
-
-
   void _saveNote() async {
     if (!Db.instance.isConnected()) return; // user may click ⌘+S on a closed DB file
 

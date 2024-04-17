@@ -74,62 +74,78 @@ class Db {
 
   /// returns new generated note_id > 0
   Future<int> insertNote(String data) async {
-    if (_database == null) return Future.value(0);
+    if (_database == null) return 0;
 
-    return await _database!.rawInsert("INSERT INTO note (data) VALUES (?);", [data]);
+    return _database!.transaction((tx) async {
+      final noteId = await tx.rawInsert("INSERT INTO note DEFAULT VALUES;");
+      await tx.rawInsert("INSERT INTO notedata (rowid, data) VALUES (?, ?);", [noteId, data]);
+      return noteId;
+    });
   }
 
   /// returns the number of rows affected
   Future<int> updateNote(int noteId, String data) async {
-    if (_database == null) return Future.value(0);
+    if (_database == null) return 0;
 
-    return await _database!.rawUpdate("UPDATE note SET data = ? WHERE note_id = ?;", [data, noteId]);
+    return await _database!.rawUpdate("UPDATE notedata SET data = ? WHERE rowid = ?;", [data, noteId]);
   }
 
   Future<void> deleteNote(int noteId) async {
     if (_database == null) return;
 
     final tx = _database!.batch();
-    tx.rawDelete("DELETE FROM note WHERE note_id = ?;", [noteId]); // TODO soft delete?
-    tx.rawDelete("DELETE FROM tag  WHERE tag_id NOT IN (SELECT DISTINCT tag_id FROM note_to_tag);");
+    tx.rawDelete("DELETE FROM note     WHERE note_id = ?;", [noteId]); // TODO soft delete?
+    tx.rawDelete("DELETE FROM notedata WHERE rowid = ?;", [noteId]);
+    tx.rawDelete("DELETE FROM tag      WHERE tag_id NOT IN (SELECT DISTINCT tag_id FROM note_to_tag);");
     await tx.commit(noResult: true, continueOnError: false);
   }
 
   Future<Iterable<Note>> getNotes() async {
-    if (_database == null) return Future.value([]);
+    if (_database == null) return [];
 
-    final dbResult = await _database!.rawQuery(
-        "SELECT note_id, data, GROUP_CONCAT(name, ', ') AS tags FROM note INNER JOIN note_to_tag USING (note_id) INNER JOIN tag USING (tag_id) GROUP BY note_id;"
-    );
+    final dbResult = await _database!.rawQuery("""
+      SELECT note_id, data, GROUP_CONCAT(name, ', ') AS tags
+      FROM note
+      INNER JOIN notedata ON note_id = notedata.rowid
+      INNER JOIN note_to_tag USING (note_id)
+      INNER JOIN tag         USING (tag_id)
+      GROUP BY note_id
+      ;""");
     return dbResult.map((e) => Note(noteId: int.parse(e["note_id"].toString()), note: e["data"].toString(), tags: e["tags"].toString()));
   }
 
   Future<Iterable<String>> getTags() async {
-    if (_database == null) return Future.value([]);
+    if (_database == null) return [];
 
     final dbResult = await _database!.rawQuery("SELECT name FROM tag;");
     return dbResult.map((e) => e["name"].toString());
   }
 
   Future<Iterable<String>> searchByTag(String tag) async {
-    if (_database == null) return Future.value([]);
+    if (_database == null) return [];
 
-    final rows = await _database!.rawQuery("SELECT data FROM note INNER JOIN note_to_tag USING (note_id) INNER JOIN tag USING (tag_id) WHERE name = ?;", [tag]);
+    final rows = await _database!.rawQuery("SELECT data FROM notedata INNER JOIN note_to_tag ON notedata.rowid = note_id INNER JOIN tag USING (tag_id) WHERE name = ?;", [tag]);
     return rows.map((e) => e["data"].toString());
+  }
+
+  Future<Iterable<String>> searchByKeyword(String word) async {
+    if (_database == null) return [];
+    if (word.isEmpty) return [];
+
+    final rows = await _database!.rawQuery("SELECT highlight(notedata, 0, '**', '**') AS x FROM notedata WHERE data MATCH ? ORDER BY rank;", [word]);
+    return rows.map((e) => e["x"].toString());
   }
 
   Future<void> linkTagsToNote(int noteId, Iterable<String> tags) async {
     if (_database == null) return;
 
-    // find tag IDs by tag names
-    final tagIds = await Future.wait(tags.map((tag) async {
-      final tagIdOpt = await _database!.rawQuery("SELECT tag_id FROM tag WHERE name = ?;", [tag]);
-      return tagIdOpt.isNotEmpty ? int.parse(tagIdOpt.first["tag_id"].toString()) : await _database!.rawInsert("INSERT INTO tag (name) VALUES (?);", [tag]);
-    }));
-
-    final tx = _database!.batch();
-    tagIds.forEach((tagId) => tx.rawInsert("INSERT INTO note_to_tag (note_id, tag_id) VALUES (?, ?);", [noteId, tagId]));
-    await tx.commit(noResult: true, continueOnError: false);
+    return _database!.transaction((tx) async {
+      await Future.wait(tags.map((tag) async {
+        final tagIdOpt = await tx.rawQuery("SELECT tag_id FROM tag WHERE name = ?;", [tag]);
+        final tagId = tagIdOpt.isNotEmpty ? int.parse(tagIdOpt.first["tag_id"].toString()) : await tx.rawInsert("INSERT INTO tag (name) VALUES (?);", [tag]);
+        await tx.rawInsert("INSERT INTO note_to_tag (note_id, tag_id) VALUES (?, ?);", [noteId, tagId]);
+      }));
+    });
   }
 
   Future<void> unlinkTagsFromNote(int noteId, Iterable<String> tags) async {
