@@ -65,12 +65,13 @@ class _MyHomePageState extends State<MyHomePage> {
     const CodeConfig(style: TextStyle(fontSize: 10)),
     const BlockquoteConfig(margin: EdgeInsets.all(2), padding: EdgeInsets.all(2)),
   ]);
-  final TextEditingController _mainCtrl = TextEditingController(); // main text in "Edit" mode
-  final TextEditingController _tagsCtrl = TextEditingController(); // comma-separated text in tags textbox
-  String? _path;                                                   // current path to DB file
-  int _noteId = 0;                                                 // ID of the note to edit (0 = new note)
-  String _oldTags = "";                                            // copy of "_tagsCtrl" to find the diff on update
-  String? _currentTag;                                             // user-selected tag to display related notes (usually null)
+  final TextEditingController _mainCtrl = TextEditingController();   // main text in "Edit" mode
+  final TextEditingController _tagsCtrl = TextEditingController();   // comma-separated text in tags textbox
+  final TextEditingController _searchCtrl = TextEditingController(); // global search query in "Search" textbox
+  String? _path;                                                     // current path to DB file
+  int _noteId = 0;                                                   // ID of the note to edit (0 = new note)
+  String _oldTags = "";                                              // copy of "_tagsCtrl" to find the diff on update
+  String? _searchBy;                                                 // null = no search (default), "" = search by keyword, "x" = search by tag 'x'
 
   @override
   void initState() {
@@ -140,19 +141,27 @@ class _MyHomePageState extends State<MyHomePage> {
                             builder: (context, snapshot) {
                               if (snapshot.hasData) {
                                 final tags = snapshot.data!.map((tag) => Padding(
-                                  padding: const EdgeInsets.only(top: 2),
-                                  child: OutlinedButton(child: Text(tag), onPressed: () => _setState(noteId: 0, oldTags: "", path: _path, currentTag: tag, mainCtrl: "", tagsCtrl: "")),
+                                  padding: const EdgeInsets.only(top: 2), // Tag button on the left side
+                                  child: OutlinedButton(
+                                    child: Text(tag),
+                                    onPressed: () => _setState(noteId: 0, oldTags: "", path: _path, searchBy: tag, mainCtrl: "", tagsCtrl: "", searchCtrl: "")
+                                  ),
                                 )).toList();
                                 return ListView(children: [
                                   Row(children: [
                                     TrixIconTextButton.icon(
                                       icon: const Icon(Icons.add_box_rounded),
                                       label: const Text("New"),
-                                      onPressed: () => _setState(noteId: 0, oldTags: "", path: _path, currentTag: null, mainCtrl: "", tagsCtrl: ""),
+                                      onPressed: () => _setState(noteId: 0, oldTags: "", path: _path, searchBy: null, mainCtrl: "", tagsCtrl: "", searchCtrl: ""),
                                     ),
+                                    Expanded(child: TextFormField(
+                                      controller: _searchCtrl,
+                                      decoration: const InputDecoration(label: Text("Search"), border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(10)))),
+                                      onEditingComplete: () => _setState(noteId: 0, oldTags: "", path: _path, searchBy: "", mainCtrl: "", tagsCtrl: "", searchCtrl: _searchCtrl.text)
+                                    )),
                                   ]),
                                   const Text("Tags", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
-                                  ...tags
+                                  ...tags,
                                 ]);
                               } else return const CircularProgressIndicator();
                             },
@@ -162,20 +171,29 @@ class _MyHomePageState extends State<MyHomePage> {
                       Flexible( // main window
                         flex: 6,
                         child: Column(children: [ // [top: edit/render panels, bottom: edit-tags/buttons panels]
-                          Expanded(child: _currentTag == null
+                          Expanded(child: _searchBy == null
                             ? Row(children: [ // [left: edit panel, right: render panel]
                                 Expanded(child: TrixContainer(child: TextField(controller: _mainCtrl, maxLines: 1024, onChanged: (s) => setState(() {})))),
                                 Expanded(child: TrixContainer(child: MarkdownWidget(data: _mainCtrl.text))),
                               ])
                             : TrixContainer(child: FutureBuilder(
-                                future: _searchByTag(_currentTag!),
+                                future: _search(),
                                 builder: (context, snapshot) => snapshot.data ?? const CircularProgressIndicator(),
                               )),
                           ),
                           Visibility(
-                            visible: _currentTag == null,
+                            visible: _searchBy == null,
                             child: TrixContainer(child: Row(children: [
-                              SizedBox(width: 300, child: TextField(controller: _tagsCtrl, decoration: const InputDecoration(label: Text("Tags")))),
+                              // TODO: TextFormField can process ENTER key
+                              SizedBox(
+                                width: 300,
+                                child: TextFormField(
+                                  controller: _tagsCtrl,
+                                  decoration: const InputDecoration(label: Text("Tags"), border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(10)))),
+                                  onEditingComplete: _saveNote,
+                                )
+                              ),
+                              const SizedBox(width: 10),
                               OutlinedButton(onPressed: _saveNote, child: Text(_noteId == 0 ? "Save" : "Update")),
                             ])),
                           )],
@@ -199,7 +217,7 @@ class _MyHomePageState extends State<MyHomePage> {
                               },
                               child: TrixContainer(child: TextButton(
                                 child: SizedBox(width: 200, child: MarkdownWidget(data: _miniNote(note.note), shrinkWrap: true, selectable: false, config: _miniConfig)),
-                                onPressed: () => _setState(noteId: note.noteId, oldTags: note.tags, path: _path, currentTag: null, mainCtrl: note.note, tagsCtrl: note.tags),
+                                onPressed: () => _setState(noteId: note.noteId, oldTags: note.tags, path: _path, searchBy: null, mainCtrl: note.note, tagsCtrl: note.tags, searchCtrl: ""),
                               )),
                             )
                           ).toList();
@@ -217,14 +235,15 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 
-  void _setState({required int noteId, required String oldTags, required String? path, required String? currentTag, required String mainCtrl, required String tagsCtrl}) {
+  void _setState({required int noteId, required String oldTags, required String? path, required String? searchBy, required String mainCtrl, required String tagsCtrl, required String searchCtrl}) {
     setState(() { // list all state variables here!
       _mainCtrl.text = mainCtrl;
       _tagsCtrl.text = tagsCtrl;
+      _searchCtrl.text = searchCtrl;
       _path = path;
       _noteId = noteId;
       _oldTags = oldTags;
-      _currentTag = currentTag;
+      _searchBy = searchBy;
     });
   }
 
@@ -242,12 +261,12 @@ class _MyHomePageState extends State<MyHomePage> {
         final newNoteId = await Db.instance.insertNote(data);
         await Db.instance.linkTagsToNote(newNoteId, tags);
         await FlutterPlatformAlert.showAlert(windowTitle: "Success", text: "New note added", iconStyle: IconStyle.information);
-        _setState(noteId: newNoteId, oldTags: _oldTags, path: _path, currentTag: null, mainCtrl: _mainCtrl.text, tagsCtrl: _tagsCtrl.text);
+        _setState(noteId: newNoteId, oldTags: _oldTags, path: _path, searchBy: null, mainCtrl: _mainCtrl.text, tagsCtrl: _tagsCtrl.text, searchCtrl: "");
       } else {            // UPDATE
         await Db.instance.updateNote(_noteId, data);
         await _updateTags();
         await FlutterPlatformAlert.showAlert(windowTitle: "Success", text: "Updated", iconStyle: IconStyle.hand);
-        _setState(noteId: _noteId, oldTags: _tagsCtrl.text, path: _path, currentTag: null, mainCtrl: _mainCtrl.text, tagsCtrl: _tagsCtrl.text);
+        _setState(noteId: _noteId, oldTags: _tagsCtrl.text, path: _path, searchBy: null, mainCtrl: _mainCtrl.text, tagsCtrl: _tagsCtrl.text, searchCtrl: "");
       }
     }
   }
@@ -257,7 +276,7 @@ class _MyHomePageState extends State<MyHomePage> {
     if (path != null) {
       await Db.instance.createDb(path);
       _addRecentFile(path);
-      _setState(noteId: 0, oldTags: "", path: path, currentTag: null, mainCtrl: "", tagsCtrl: "");
+      _setState(noteId: 0, oldTags: "", path: path, searchBy: null, mainCtrl: "", tagsCtrl: "", searchCtrl: "");
     }
   }
 
@@ -265,7 +284,7 @@ class _MyHomePageState extends State<MyHomePage> {
     if (File(path).existsSync()) {
       await Db.instance.openDb(path);
       _addRecentFile(path);
-      _setState(noteId: 0, oldTags: "", path: path, currentTag: null, mainCtrl: "", tagsCtrl: "");
+      _setState(noteId: 0, oldTags: "", path: path, searchBy: null, mainCtrl: "", tagsCtrl: "", searchCtrl: "");
     } else {
       FlutterPlatformAlert.showAlert(windowTitle: "Error", text: 'File not found:\n$path', iconStyle: IconStyle.error);
       _removeFromRecentFiles(path);
@@ -282,7 +301,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
   void _closeDbFile() async {
     await Db.instance.closeDb();
-    _setState(noteId: 0, oldTags: "", path: null, currentTag: null, mainCtrl: "", tagsCtrl: "");
+    _setState(noteId: 0, oldTags: "", path: null, searchBy: null, mainCtrl: "", tagsCtrl: "", searchCtrl: "");
   }
   
   void _showAboutDialog() async {
@@ -308,8 +327,14 @@ class _MyHomePageState extends State<MyHomePage> {
     settings.setStringList(recentFilesKey, list);
   }
 
-  Future<Widget> _searchByTag(String tag) async {
-    final rows = await Db.instance.searchByTag(tag);
+  Future<Widget> _search() async {
+    late Iterable<String> rows;
+    switch (_searchBy) {
+      case null: rows = [];
+      case "":   rows = await Db.instance.searchByKeyword(_searchCtrl.text);
+      default:   rows = await Db.instance.searchByTag(_searchBy!);
+    }
+
     final children = rows.map((e) => TrixContainer(child: MarkdownWidget(data: e, shrinkWrap: true))).toList();
     return ListView(children: children);
   }
