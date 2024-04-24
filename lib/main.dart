@@ -17,11 +17,12 @@ import 'package:tommynotes/trixicontext.dart';
 
 const String recentFilesKey = "RECENT_FILES";
 const String deleteKey = "Delete";
+final bool isDesktop = Platform.isMacOS || Platform.isWindows || Platform.isLinux;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized(); // allow async code in main()
   await Settings.instance.init(); // TODO check how long it takes
-  await windowManager.ensureInitialized();
+  if (isDesktop) await windowManager.ensureInitialized();
   runApp(const MyApp());
 }
 
@@ -31,27 +32,25 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: "Tommy Notes",
+      title: "Tommynotes",
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
         useMaterial3: true,
       ),
-      home: const MyHomePage(title: "TommyNotes"),
+      home: const MyHomePage(),
     );
   }
 }
 
 class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-
-  final String title;
+  const MyHomePage({super.key});
 
   @override
   State<MyHomePage> createState() => _MyHomePageState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
+class _MyHomePageState extends State<MyHomePage> { // TODO: rename Home
   final _miniConfig = MarkdownConfig(configs: [                    // config to render small notes at the bottom
     const HrConfig(height: 0.2),
     const H1Config(style: TextStyle(fontSize: 12)),
@@ -76,12 +75,34 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   void initState() {
     super.initState();
-    // windowManager.setFullScreen(true); TODO: maximize, not full screen!
+    // if (isDesktop) windowManager.setFullScreen(true); TODO: maximize, not full screen!
   }
 
   @override
   Widget build(BuildContext context) {
-    windowManager.setTitle(_path != null ? basename(_path!) : "Tommynotes");
+    return isDesktop ? _buildForDesktop(context) : _buildForMobile(context);
+  }
+
+  Widget _buildForMobile(BuildContext context) {
+    return Scaffold(
+      body: !Db.instance.isConnected() ? const Center(child: Text("Welcome!\nOpen a DB file")) : FutureBuilder(
+        future: Db.instance.getNotes(),
+        builder: (context, snapshot) {
+          if (snapshot.hasData) {
+            final children = snapshot.data!.map((note) => TrixContainer(child: MarkdownWidget(
+              data: note.note, // this may print: "get language error:Null check operator used on a null value", it's not our bad
+              shrinkWrap: true
+            ))).toList();
+            return ListView(children: children); // TODO use ListView.builder for better performance
+          } else return const CircularProgressIndicator();
+        },
+      ),
+      floatingActionButton: FloatingActionButton.small(onPressed: _openDbFileWithDialog, child: const Icon(Icons.file_open)),
+    );
+  }
+
+  Widget _buildForDesktop(BuildContext context) {
+    if (isDesktop) windowManager.setTitle(_path != null ? basename(_path!) : "Tommynotes");
 
     final recentFilesMenus = Settings.instance.settings.getStringList(recentFilesKey)?.map((path) =>
       PlatformMenuItem(label: path, onSelected: () => _openDbFile(path))
@@ -293,8 +314,10 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   void _openDbFileWithDialog() async {
-    final FilePickerResult? res = await FilePicker.platform.pickFiles(dialogTitle: "Open a DB file", type: FileType.custom, allowedExtensions: ["db"], lockParentWindow: true);
-    final path = res?.files.first.path;
+    final FilePickerResult? res = isDesktop
+        ? await FilePicker.platform.pickFiles(dialogTitle: "Open a DB file", type: FileType.custom, allowedExtensions: ["db"], lockParentWindow: true)
+        : await FilePicker.platform.pickFiles(dialogTitle: "Open a DB file", type: FileType.any);
+    final path = res?.files.single.path;
     if (path != null)
       _openDbFile(path);
   }
