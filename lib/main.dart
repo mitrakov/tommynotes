@@ -122,10 +122,10 @@ class _MyHomePageState extends State<MyHomePage> { // TODO: rename Home
         PlatformMenu(
           label: "File",
           menus: [
+            PlatformMenu(label: "Open Recent", menus: recentFilesMenus),
             PlatformMenuItemGroup(members: [
               PlatformMenuItem(label: "New File", onSelected: _newDbFile),
               PlatformMenuItem(label: "Open...", onSelected: _openDbFileWithDialog),
-              PlatformMenu(label: "Open Recent", menus: recentFilesMenus),
             ]),
             PlatformMenuItem(label: "Close File", onSelected: _closeDbFile),
           ],
@@ -133,6 +133,7 @@ class _MyHomePageState extends State<MyHomePage> { // TODO: rename Home
       ],
       child: Shortcuts(
         shortcuts: {
+          const SingleActivator(LogicalKeyboardKey.f1)                                                : AboutIntent(),
           SingleActivator(LogicalKeyboardKey.keyN, meta: Platform.isMacOS, control: !Platform.isMacOS): NewDbFileIntent(),
           SingleActivator(LogicalKeyboardKey.keyO, meta: Platform.isMacOS, control: !Platform.isMacOS): OpenDbFileIntent(),
           SingleActivator(LogicalKeyboardKey.keyS, meta: Platform.isMacOS, control: !Platform.isMacOS): SaveNoteIntent(),
@@ -141,6 +142,7 @@ class _MyHomePageState extends State<MyHomePage> { // TODO: rename Home
         },
         child: Actions(
           actions: {
+            AboutIntent:       CallbackAction(onInvoke: (_) => _showAboutDialog()),
             NewDbFileIntent:   CallbackAction(onInvoke: (_) => _newDbFile()),
             OpenDbFileIntent:  CallbackAction(onInvoke: (_) => _openDbFileWithDialog()),
             SaveNoteIntent:    CallbackAction(onInvoke: (_) => _saveNote()),
@@ -376,6 +378,7 @@ class _MyHomePageState extends State<MyHomePage> { // TODO: rename Home
   String _miniNote(String note) => note.split("\n").take(4).map((s) => s.substring(0, min(28, s.length))).join("\n");
 }
 
+class AboutIntent       extends Intent {}
 class NewDbFileIntent   extends Intent {}
 class OpenDbFileIntent  extends Intent {}
 class SaveNoteIntent    extends Intent {}
