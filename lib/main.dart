@@ -17,7 +17,15 @@ import 'package:tommynotes/trixcontainer.dart';
 import 'package:tommynotes/trixicontext.dart';
 
 const String recentFilesKey = "RECENT_FILES";
+const String hintNumberKey = "HINT_NUMBER"; // zero-based, 0 = should show 0, etc.
 const String deleteKey = "Delete";
+const List<String> hints = [
+  "This is Tommynotes, free cross-platform open-source app for taking virtual notes.\n"
+  "Note that it's not a usual note-taking app with folders and subfolders which is often hard to organize.\n"
+  "It's a (potentially) infinite feed of small events searchable by tag or keywords.\n\n"
+  "Not recommended usage:\nadd -> find-existing-note-in-tree -> edit\n\n"
+  "RECOMMENDED usage:\nadd -> add -> add -> search",
+];
 final bool isDesktop = Platform.isMacOS || Platform.isWindows || Platform.isLinux;
 
 void main() async {
@@ -77,6 +85,7 @@ class _MyHomePageState extends State<MyHomePage> { // TODO: rename Home
   void initState() {
     super.initState();
     // if (isDesktop) windowManager.setFullScreen(true); TODO: maximize, not full screen!
+    _showHint();
   }
 
   @override
@@ -394,6 +403,15 @@ class _MyHomePageState extends State<MyHomePage> { // TODO: rename Home
 
     await Db.instance.unlinkTagsFromNote(_noteId, rmTags);
     await Db.instance.linkTagsToNote(_noteId, addTags);
+  }
+
+  void _showHint() {
+    final settings = Settings.instance.settings;
+    final currentHint = settings.getInt(hintNumberKey) ?? 0;
+    if (currentHint < hints.length) {
+      FlutterPlatformAlert.showAlert(windowTitle: "Tommynotes", text: hints[currentHint], iconStyle: IconStyle.information);
+      settings.setInt(hintNumberKey, currentHint+1);
+    }
   }
 
   String _miniNote(String note) => note.split("\n").take(4).map((s) => s.substring(0, min(28, s.length))).join("\n");
