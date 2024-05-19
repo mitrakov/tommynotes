@@ -132,7 +132,7 @@ class Db {
     if (_database == null) return [];
     if (word.isEmpty) return [];
 
-    final rows = await _database!.rawQuery("SELECT highlight(notedata, 0, '**', '**') AS x FROM notedata WHERE data MATCH ? ORDER BY rank;", [word]);
+    final rows = await _database!.rawQuery("SELECT data AS x FROM notedata WHERE data MATCH ? ORDER BY rank;", [word]);
     return rows.map((e) => e["x"].toString());
   }
 
