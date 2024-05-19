@@ -128,12 +128,22 @@ class Db {
     return rows.map((e) => e["data"].toString());
   }
 
-  Future<Iterable<String>> searchByKeyword(String word) async {
+  Future<Iterable<Note>> searchByKeyword(String word) async {
     if (_database == null) return [];
     if (word.isEmpty) return [];
 
-    final rows = await _database!.rawQuery("SELECT data AS x FROM notedata WHERE data MATCH ? ORDER BY rank;", [word]);
-    return rows.map((e) => e["x"].toString());
+    final dbResult = await _database!.rawQuery("""
+      SELECT note_id, data, GROUP_CONCAT(name, ', ') AS tags
+      FROM note
+      INNER JOIN notedata ON note_id = notedata.rowid
+      INNER JOIN note_to_tag USING (note_id)
+      INNER JOIN tag         USING (tag_id)
+      WHERE data MATCH ?
+      GROUP BY note_id
+      ORDER BY notedata.rank
+      ;""", [word]
+    );
+    return dbResult.map((e) => Note(noteId: int.parse(e["note_id"].toString()), note: e["data"].toString(), tags: e["tags"].toString()));
   }
 
   Future<void> linkTagsToNote(int noteId, Iterable<String> tags) async {

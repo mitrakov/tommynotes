@@ -356,7 +356,7 @@ class _MyHomePageState extends State<MyHomePage> { // TODO: rename Home
     late Iterable<String> rows;
     switch (_searchBy) {
       case null: rows = [];
-      case "":   rows = await Db.instance.searchByKeyword(_searchCtrl.text);
+      case "":   rows = (await Db.instance.searchByKeyword(_searchCtrl.text)).map((e) => "> 🔖 ${e.tags}\n${e.note}");
       default:   rows = await Db.instance.searchByTag(_searchBy!);
     }
 
