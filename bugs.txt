@@ -1,4 +1,0 @@
-- click note, delete note, then click Update;
-- edit note -> delete -> save
-- save -> update
-- trim last enter
