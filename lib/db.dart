@@ -121,11 +121,11 @@ class Db {
     return dbResult.map((e) => e["name"].toString());
   }
 
-  Future<Iterable<String>> searchByTag(String tag) async {
+  Future<Iterable<Note>> searchByTag(String tag) async {
     if (_database == null) return [];
 
-    final rows = await _database!.rawQuery("SELECT data FROM notedata INNER JOIN note_to_tag ON notedata.rowid = note_id INNER JOIN tag USING (tag_id) WHERE name = ?;", [tag]);
-    return rows.map((e) => e["data"].toString());
+    final dbResult = await _database!.rawQuery("SELECT note_id, data FROM notedata INNER JOIN note_to_tag ON notedata.rowid = note_id INNER JOIN tag USING (tag_id) WHERE name = ?;", [tag]);
+    return dbResult.map((e) => Note(noteId: int.parse(e["note_id"].toString()), note: e["data"].toString(), tags: tag));
   }
 
   Future<Iterable<Note>> searchByKeyword(String word) async {

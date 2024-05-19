@@ -9,6 +9,7 @@ import 'package:markdown_widget/markdown_widget.dart';
 import 'package:native_context_menu/native_context_menu.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import "package:path/path.dart" show basename;
+import 'package:tommynotes/note.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:tommynotes/db.dart';
 import 'package:tommynotes/settings.dart';
@@ -238,7 +239,7 @@ class _MyHomePageState extends State<MyHomePage> { // TODO: rename Home
                                   setState(() {}); // refresh
                                 }
                               },
-                              child: TrixContainer(child: TextButton(
+                              child: TrixContainer(child: TextButton( // button with a mini-note on the bottom
                                 child: SizedBox(width: 200, child: MarkdownWidget(data: _miniNote(note.note), shrinkWrap: true, selectable: false, config: _miniConfig)),
                                 onPressed: () => _setState(noteId: note.noteId, oldTags: note.tags, path: _path, searchBy: null, mainCtrl: note.note, tagsCtrl: note.tags, searchCtrl: ""),
                               )),
@@ -353,14 +354,34 @@ class _MyHomePageState extends State<MyHomePage> { // TODO: rename Home
   }
 
   Future<Widget> _search() async {
-    late Iterable<String> rows;
+    late Iterable<Note> rows;
     switch (_searchBy) {
       case null: rows = [];
-      case "":   rows = (await Db.instance.searchByKeyword(_searchCtrl.text)).map((e) => "> 🔖 ${e.tags}\n${e.note}");
+      case "":   rows = await Db.instance.searchByKeyword(_searchCtrl.text);
       default:   rows = await Db.instance.searchByTag(_searchBy!);
     }
 
-    final children = rows.map((e) => TrixContainer(child: MarkdownWidget(data: e, shrinkWrap: true))).toList();
+    final children = rows.map((note) => TrixContainer(child: Stack(
+      alignment: Alignment.topRight,
+      children: [
+        MarkdownWidget(data: note.note, shrinkWrap: true),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TrixContainer(child: Text( "🔖 ${note.tags}")),
+            const SizedBox(width: 8),
+            FloatingActionButton(
+              tooltip: "Edit",
+              mini: true,
+              backgroundColor: Colors.blue[50],
+              onPressed: () => _setState(noteId: note.noteId, oldTags: note.tags, path: _path, searchBy: null, mainCtrl: note.note, tagsCtrl: note.tags, searchCtrl: ""),
+              child: const Icon(Icons.edit),
+            ),
+          ],
+        ),
+      ]
+    ))).toList();
     return ListView(children: children);
   }
 
