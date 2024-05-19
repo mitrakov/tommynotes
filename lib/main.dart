@@ -16,22 +16,22 @@ import 'package:tommynotes/settings.dart';
 import 'package:tommynotes/trixcontainer.dart';
 import 'package:tommynotes/trixicontext.dart';
 
-const String recentFilesKey = "RECENT_FILES";
-const String hintNumberKey = "HINT_NUMBER"; // zero-based, 0 = should show 0, etc.
-const String deleteKey = "Delete";
-const List<String> hints = [
+const String _settingsRecentFilesKey = "RECENT_FILES";
+const String _settingsNextHintKey = "HINT_NUMBER"; // zero-based, 0 = should show 0, etc.
+const String _deleteKey = "Delete";
+const List<String> _hints = [
   "This is Tommynotes, free cross-platform open-source app for taking virtual notes.\n"
   "Note that it's not a usual note-taking app with folders and subfolders which is often hard to organize.\n"
   "It's a (potentially) infinite feed of small events searchable by tag or keywords.\n\n"
   "Not recommended usage:\nadd -> find-existing-note-in-tree -> edit\n\n"
   "RECOMMENDED usage:\nadd -> add -> add -> search",
 ];
-final bool isDesktop = Platform.isMacOS || Platform.isWindows || Platform.isLinux;
+final bool _isDesktop = Platform.isMacOS || Platform.isWindows || Platform.isLinux;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized(); // allow async code in main()
   await Settings.instance.init(); // TODO check how long it takes
-  if (isDesktop) await windowManager.ensureInitialized();
+  if (_isDesktop) await windowManager.ensureInitialized();
   runApp(const MyApp());
 }
 
@@ -90,7 +90,7 @@ class _MyHomePageState extends State<MyHomePage> { // TODO: rename Home
 
   @override
   Widget build(BuildContext context) {
-    return isDesktop ? _buildForDesktop(context) : _buildForMobile(context);
+    return _isDesktop ? _buildForDesktop(context) : _buildForMobile(context);
   }
 
   Widget _buildForMobile(BuildContext context) {
@@ -112,9 +112,9 @@ class _MyHomePageState extends State<MyHomePage> { // TODO: rename Home
   }
 
   Widget _buildForDesktop(BuildContext context) {
-    if (isDesktop) windowManager.setTitle(_path != null ? basename(_path!) : "Tommynotes");
+    if (_isDesktop) windowManager.setTitle(_path != null ? basename(_path!) : "Tommynotes");
 
-    final recentFilesMenus = Settings.instance.settings.getStringList(recentFilesKey)?.map((path) =>
+    final recentFilesMenus = Settings.instance.settings.getStringList(_settingsRecentFilesKey)?.map((path) =>
       PlatformMenuItem(label: path, onSelected: () => _openDbFile(path))
     ).toList() ?? [];
 
@@ -241,9 +241,9 @@ class _MyHomePageState extends State<MyHomePage> { // TODO: rename Home
                         if (snapshot.hasData) {
                           final children = snapshot.data!.map((note) =>
                             ContextMenuRegion(
-                              menuItems: [MenuItem(title: deleteKey)],
+                              menuItems: [MenuItem(title: _deleteKey)],
                               onItemSelected: (item) async {
-                                if (item.title == deleteKey) {
+                                if (item.title == _deleteKey) {
                                   await Db.instance.deleteNote(note.noteId);
                                   setState(() {}); // refresh
                                 }
@@ -326,7 +326,7 @@ class _MyHomePageState extends State<MyHomePage> { // TODO: rename Home
   }
 
   void _openDbFileWithDialog() async {
-    final FilePickerResult? res = isDesktop
+    final FilePickerResult? res = _isDesktop
         ? await FilePicker.platform.pickFiles(dialogTitle: "Open a DB file", type: FileType.custom, allowedExtensions: ["db"], lockParentWindow: true)
         : await FilePicker.platform.pickFiles(dialogTitle: "Open a DB file", type: FileType.any);
     final path = res?.files.single.path;
@@ -347,19 +347,19 @@ class _MyHomePageState extends State<MyHomePage> { // TODO: rename Home
 
   void _addRecentFile(String path) {
     final settings = Settings.instance.settings;
-    final list = settings.getStringList(recentFilesKey) ?? [];
+    final list = settings.getStringList(_settingsRecentFilesKey) ?? [];
     if (list.firstOrNull == path) return; // no changes needed
     if (list.contains(path))              // remove possible duplicates
       list.remove(path);
     list.insert(0, path);                 // prepend to the list
-    settings.setStringList(recentFilesKey, list);
+    settings.setStringList(_settingsRecentFilesKey, list);
   }
 
   void _removeFromRecentFiles(String path) {
     final settings = Settings.instance.settings;
-    final list = settings.getStringList(recentFilesKey) ?? [];
+    final list = settings.getStringList(_settingsRecentFilesKey) ?? [];
     list.remove(path);
-    settings.setStringList(recentFilesKey, list);
+    settings.setStringList(_settingsRecentFilesKey, list);
   }
 
   Future<Widget> _search() async {
@@ -407,10 +407,10 @@ class _MyHomePageState extends State<MyHomePage> { // TODO: rename Home
 
   void _showHint() {
     final settings = Settings.instance.settings;
-    final currentHint = settings.getInt(hintNumberKey) ?? 0;
-    if (currentHint < hints.length) {
-      FlutterPlatformAlert.showAlert(windowTitle: "Tommynotes", text: hints[currentHint], iconStyle: IconStyle.information);
-      settings.setInt(hintNumberKey, currentHint+1);
+    final currentHint = settings.getInt(_settingsNextHintKey) ?? 0;
+    if (currentHint < _hints.length) {
+      FlutterPlatformAlert.showAlert(windowTitle: "Tommynotes", text: _hints[currentHint], iconStyle: IconStyle.information);
+      settings.setInt(_settingsNextHintKey, currentHint+1);
     }
   }
 
