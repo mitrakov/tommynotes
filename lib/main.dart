@@ -18,7 +18,7 @@ import 'package:tommynotes/trixicontext.dart';
 
 const String _settingsRecentFilesKey = "RECENT_FILES";
 const String _settingsNextHintKey = "HINT_NUMBER"; // zero-based, 0 = should show 0, etc.
-const String _deleteKey = "Delete";
+const String _deleteKey = "Delete"; // TODO: next: remove this
 const List<String> _hints = [
   "This is Tommynotes, free cross-platform open-source app for taking virtual notes.\n"
   "Note that it's not a usual note-taking app with folders and subfolders which is often hard to organize.\n"
@@ -304,6 +304,16 @@ class _MyHomePageState extends State<MyHomePage> { // TODO: rename Home
     }
   }
 
+  void _deleteNote(int noteId) async {
+    const title = "Attention!";
+    const text = "Do you want to delete this note?";
+    final AlertButton result = await FlutterPlatformAlert.showAlert(windowTitle: title, text: text, alertStyle: AlertButtonStyle.yesNoCancel, iconStyle: IconStyle.stop);
+    if (result == AlertButton.yesButton) {
+      await Db.instance.deleteNote(noteId);
+      setState(() {}); // refresh
+    }
+  }
+
   void _newDbFile() async {
     final path = await FilePicker.platform.saveFile(dialogTitle: "Create a new DB file", fileName: "workspace.db", allowedExtensions: ["db"], lockParentWindow: true);
     if (path != null) {
@@ -386,6 +396,14 @@ class _MyHomePageState extends State<MyHomePage> { // TODO: rename Home
               backgroundColor: Colors.blue[50],
               onPressed: () => _setState(noteId: note.noteId, oldTags: note.tags, path: _path, searchBy: null, mainCtrl: note.note, tagsCtrl: note.tags, searchCtrl: ""),
               child: const Icon(Icons.edit),
+            ),
+            const SizedBox(width: 8),
+            FloatingActionButton(
+              tooltip: "Delete",
+              mini: true,
+              backgroundColor: Colors.red[200],
+              onPressed: () => _deleteNote(note.noteId),
+              child: const Icon(Icons.remove_circle_outline_rounded),
             ),
           ],
         ),
