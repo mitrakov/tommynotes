@@ -124,7 +124,14 @@ class Db {
   Future<Iterable<Note>> searchByTag(String tag) async {
     if (_database == null) return [];
 
-    final dbResult = await _database!.rawQuery("SELECT note_id, data FROM notedata INNER JOIN note_to_tag ON notedata.rowid = note_id INNER JOIN tag USING (tag_id) WHERE name = ?;", [tag]);
+    final dbResult = await _database!.rawQuery("""
+      SELECT note_id, data
+      FROM notedata
+      INNER JOIN note_to_tag ON notedata.rowid = note_id
+      INNER JOIN tag USING (tag_id)
+      WHERE name = ?
+      ORDER BY note_to_tag.updated_at DESC
+      ;""", [tag]);
     return dbResult.map((e) => Note(noteId: int.parse(e["note_id"].toString()), note: e["data"].toString(), tags: tag));
   }
 
@@ -140,7 +147,7 @@ class Db {
       INNER JOIN tag         USING (tag_id)
       WHERE data MATCH ?
       GROUP BY note_id
-      ORDER BY notedata.rank
+      ORDER BY notedata.rank, note.updated_at
       ;""", [word]
     );
     return dbResult.map((e) => Note(noteId: int.parse(e["note_id"].toString()), note: e["data"].toString(), tags: e["tags"].toString()));
