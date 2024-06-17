@@ -283,13 +283,13 @@ class _MyHomePageState extends State<MyHomePage> { // TODO: rename Home
   void _saveNote() async {
     if (!Db.instance.isConnected()) return; // user may click ⌘+S on a closed DB file
 
-    final data = _mainCtrl.text.trim();
+    final data = _mainCtrl.text;
     final tags = _tagsCtrl.text.split(",").map((tag) => tag.trim()).where((tag) => tag.isNotEmpty);
     if (tags.isEmpty) {
       FlutterPlatformAlert.showAlert(windowTitle: "Tag required", text: 'Please add at least 1 tag,\ne.g. "Work", "New" or "TODO"', iconStyle: IconStyle.warning);
       return;
     }
-    if (data.isNotEmpty) {
+    if (data.trim().isNotEmpty) {
       if (_noteId == 0) { // INSERT
         final newNoteId = await Db.instance.insertNote(data);
         await Db.instance.linkTagsToNote(newNoteId, tags);
