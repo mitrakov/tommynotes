@@ -1,0 +1,29 @@
+Performing hot reload...
+Syncing files to device macOS...
+Reloaded 1 of 1465 libraries in 1.092ms (compile: 87 ms, reload: 577 ms, reassemble: 403 ms).
+flutter: noteId = 9; rmTags = {}; addTags = {RemoveMe}
+2024-06-18 00:42:31.194 Tommynotes[10573:318825] Unknown error calling sqlite3_step (1555: UNIQUE constraint failed: note_to_tag.note_id, note_to_tag.tag_id) rs
+[ERROR:flutter/runtime/dart_vm_initializer.cc(41)] Unhandled Exception: DatabaseException(Error Domain=SqfliteDarwinDatabase Code=1555 "UNIQUE constraint failed: note_to_tag.note_id, note_to_tag.tag_id" UserInfo={NSLocalizedDescription=UNIQUE constraint failed: note_to_tag.note_id, note_to_tag.tag_id}) sql 'INSERT INTO note_to_tag (note_id, tag_id) VALUES (?, ?);' args [9, 3]
+#0      wrapDatabaseException (package:sqflite/src/exception_impl.dart:11:7)
+<asynchronous suspension>
+#1      SqfliteDatabaseMixin.txnRawInsert.<anonymous closure> (package:sqflite_common/src/database_mixin.dart:576:14)
+<asynchronous suspension>
+#2      SqfliteDatabaseMixin.txnSynchronized (package:sqflite_common/src/database_mixin.dart:485:16)
+<asynchronous suspension>
+#3      Db.linkTagsToNote.<anonymous closure>.<anonymous closure> (package:tommynotes/db.dart:163:9)
+<asynchronous suspension>
+#4      Future.wait.<anonymous closure> (dart:async/future.dart:518:21)
+<asynchronous suspension>
+#5      Db.linkTagsToNote.<anonymous closure> (package:tommynotes/db.dart:160:7)
+<asynchronous suspension>
+#6      SqfliteDatabaseMixinExt._txnTransaction (package:sqflite_common/src/database_mixin.dart:337:16)
+<asynchronous suspension>
+#7      BasicLock.synchronized (package:synchronized/src/basic_lock.dart:33:16)
+<asynchronous suspension>
+#8      SqfliteDatabaseMixin.txnSynchronized (package:sqflite_common/src/database_mixin.dart:517:14)
+<asynchronous suspension>
+#9      _MyHomePageState._updateTags (package:tommynotes/main.dart:424:5)
+<asynchronous suspension>
+#10     _MyHomePageState._saveNote (package:tommynotes/main.dart:300:9)
+<asynchronous suspension>
+
