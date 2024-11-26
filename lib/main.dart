@@ -5,30 +5,38 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_platform_alert/flutter_platform_alert.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:markdown_widget/markdown_widget.dart';
 import 'package:native_context_menu/native_context_menu.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import "package:path/path.dart" show basename;
-import 'package:tommynotes/note.dart';
+import 'package:path/path.dart' show basename;
 import 'package:window_manager/window_manager.dart';
 import 'package:tommynotes/db.dart';
+import 'package:tommynotes/note.dart';
 import 'package:tommynotes/settings.dart';
 import 'package:tommynotes/trixcontainer.dart';
 import 'package:tommynotes/trixicontext.dart';
 
 const String _settingsRecentFilesKey = "RECENT_FILES";
 const String _settingsNextHintKey = "HINT_NUMBER"; // zero-based, 0 = should show 0, etc.
-const String _deleteKey = "Delete"; // TODO: next: remove this
+const String _deleteKey = "Delete";
 const List<String> _hints = [
   "This is Tommynotes, free cross-platform open-source app for taking virtual notes.\n"
   "Note that it's not a usual note-taking app with folders and subfolders which is often hard to organize.\n"
   "It's a (potentially) infinite feed of small events searchable by tag or keywords.\n\n"
-  "Not recommended usage:\nadd -> find-existing-note-in-tree -> edit\n\n"
-  "RECOMMENDED usage:\nadd -> add -> add -> search",
+  "RECOMMENDED usage:\nadd -> add -> add -> search\n\n"
+  "Not recommended usage:\nadd -> find-existing-note -> edit\n\n"
+  ,
 ];
 final bool _isDesktop = Platform.isMacOS || Platform.isWindows || Platform.isLinux;
 
 void main() async {
+  // bug in Sqflite: https://stackoverflow.com/questions/76158800
+  if (Platform.isWindows || Platform.isLinux) {
+    sqfliteFfiInit();
+    databaseFactory = databaseFactoryFfi;
+  }
+
   WidgetsFlutterBinding.ensureInitialized(); // allow async code in main()
   await Settings.instance.init(); // TODO check how long it takes
   if (_isDesktop) await windowManager.ensureInitialized();
@@ -47,20 +55,20 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
         useMaterial3: true,
       ),
-      home: const MyHomePage(),
+      home: const Main(),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key});
+class Main extends StatefulWidget {
+  const Main({super.key});
 
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  State<Main> createState() => _MainState();
 }
 
-class _MyHomePageState extends State<MyHomePage> { // TODO: rename Home
-  final _miniConfig = MarkdownConfig(configs: [                    // config to render small notes at the bottom
+class _MainState extends State<Main> {
+  final _miniConfig = MarkdownConfig(configs: [                      // config to render small notes at the bottom
     const HrConfig(height: 0.2),
     const H1Config(style: TextStyle(fontSize: 12)),
     const H2Config(style: TextStyle(fontSize: 11)),
@@ -84,7 +92,8 @@ class _MyHomePageState extends State<MyHomePage> { // TODO: rename Home
   @override
   void initState() {
     super.initState();
-    // if (isDesktop) windowManager.setFullScreen(true); TODO: maximize, not full screen!
+    // TODO: fix for MacOS
+    if (Platform.isWindows || Platform.isLinux) windowManager.setFullScreen(true);
     _showHint();
   }
 
@@ -417,7 +426,6 @@ class _MyHomePageState extends State<MyHomePage> { // TODO: rename Home
     final newTags = _tagsCtrl.text.split(",").map((tag) => tag.trim()).where((tag) => tag.isNotEmpty).toSet();
     final rmTags  = oldTags.difference(newTags);
     final addTags = newTags.difference(oldTags);
-    print("noteId = $_noteId; rmTags = $rmTags; addTags = $addTags");
 
     await Db.instance.unlinkTagsFromNote(_noteId, rmTags);
     await Db.instance.linkTagsToNote(_noteId, addTags);
