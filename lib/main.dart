@@ -31,7 +31,9 @@ const List<String> _hints = [
 final bool _isDesktop = Platform.isMacOS || Platform.isWindows || Platform.isLinux;
 
 void main() async {
-  // bug in Sqflite: https://stackoverflow.com/questions/76158800
+  // bug in Sqflite:
+  // https://stackoverflow.com/questions/76158800  // add FFI support for Windows/Linux
+  // https://stackoverflow.com/questions/75837229  // add sqlite.dll to Windows release manually
   if (Platform.isWindows || Platform.isLinux) {
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;
@@ -92,8 +94,7 @@ class _MainState extends State<Main> {
   @override
   void initState() {
     super.initState();
-    // TODO: fix for MacOS
-    if (Platform.isWindows || Platform.isLinux) windowManager.setFullScreen(true);
+    // if (_isDesktop) windowManager.setFullScreen(true); // TODO: full window, not full-screen
     _showHint();
   }
 
@@ -128,7 +129,7 @@ class _MainState extends State<Main> {
     ).toList() ?? [];
 
     return PlatformMenuBar(
-      menus: [
+      menus: [ // TODO: create menu for Windows/Linux
         PlatformMenu(
           label: "",
           menus: [
